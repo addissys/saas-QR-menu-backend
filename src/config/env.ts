@@ -6,7 +6,8 @@ dotenv.config();
 //Define the variables your application absolutely needs to run
 const requiredVariables = [
   'DATABASE_URL',
-  // 'JWT_SECRET', // Uncomment this when you start building the Auth module
+  'JWT_SECRET',
+  'JWT_REFRESH_SECRET',
 ] as const;
 
 //Loop through and check if any are missing
@@ -20,5 +21,11 @@ export const config = {
   port: parseInt(process.env.PORT as string, 10) || 5000,
   databaseUrl: process.env.DATABASE_URL as string,
   nodeEnv: process.env.NODE_ENV || 'development',
-  
+  jwtSecret: process.env.JWT_SECRET as string,
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET as string,
+
+  jwtRefreshExpiresIn:
+    process.env.JWT_REFRESH_EXPIRES_IN || '7d',
 };
