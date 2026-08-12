@@ -1,11 +1,9 @@
 {
   "compilerOptions": {
-    // File Layout
-    "rootDir": "./src",
+    "rootDir": ".",
     "outDir": "./dist",
 
-    // Environment Settings
-    "target": "es2022",
+    "target": "ES2022",
     "module": "Node16",
     "moduleResolution": "Node16",
     "lib": ["ES2022"],
@@ -14,14 +12,17 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
 
-    // Type Checking
     "strict": true,
     "skipLibCheck": true,
     "noUncheckedIndexedAccess": true
   },
+
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "prisma.config.ts",
+    "prisma/**/*.ts"
   ],
+
   "exclude": [
     "node_modules",
     "dist"
