@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 
+import swaggerUi from 'swagger-ui-express';
+import swaggerSpec from './config/swagger';
+
 import authRoutes from './routes/auth.routes';
 import adminRoutes from './routes/admin.routes';
 import publicMenuRoutes from './routes/public-menu.routes';
@@ -86,6 +89,13 @@ app.use(
   auditLogRoutes
 );
 
+//_________________//
+app.use(
+  '/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec)
+);
+//_________________//
 app.get('/health', (req, res) => {
   res.json({
     success: true,
