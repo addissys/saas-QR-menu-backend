@@ -5,17 +5,66 @@ import authRoutes from './routes/auth.routes';
 import adminRoutes from './routes/admin.routes';
 import publicMenuRoutes from './routes/public-menu.routes';
 import notificationRoutes from './routes/notification.routes';
+import auditLogRoutes from './routes/audit-log.routes';
+import {
+  securityHeaders,
+  apiRateLimiter,
+} from './middleware/security.middleware';
+
+import { errorHandler } from './middleware/error.middleware';
 
 const app = express();
 
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
-app.use(express.json());
+/*
+|--------------------------------------------------------------------------
+| Security
+|--------------------------------------------------------------------------
+*/
 
-app.use(express.urlencoded({
-  extended: true,
-}));
+app.use(securityHeaders);
+
+/*
+|--------------------------------------------------------------------------
+| CORS
+|--------------------------------------------------------------------------
+*/
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+  })
+);
+
+/*
+|--------------------------------------------------------------------------
+| Body Parser
+|--------------------------------------------------------------------------
+*/
+
+app.use(
+  express.json({
+    limit: '1mb',
+  })
+);
+
+app.use(
+  express.urlencoded({
+    extended: true,
+    limit: '1mb',
+  })
+);
+
+/*
+|--------------------------------------------------------------------------
+| General API Rate Limiting
+|--------------------------------------------------------------------------
+*/
+
+app.use('/api/v1', apiRateLimiter);
+
 
 /*
  * API Routes
@@ -32,6 +81,11 @@ app.use(
   notificationRoutes
 );
 
+app.use(
+  '/api/v1/audit-logs',
+  auditLogRoutes
+);
+
 app.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -45,6 +99,15 @@ app.use((req, res) => {
     message: 'Route not found',
   });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Global Error Handler
+|--------------------------------------------------------------------------
+*/
+
+app.use(errorHandler);
+
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
