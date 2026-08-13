@@ -3,8 +3,29 @@ import {
   NextFunction,
 } from 'express';
 
+import prisma from '../config/prisma';
 import { AuthenticatedRequest } from './auth.middleware';
 
+/**
+ * Role-Based Authorization Middleware
+ *
+ * Usage:
+ *
+ * requireRoles('SUPER_ADMIN')
+ *
+ * Multiple roles:
+ *
+ * requireRoles(
+ *   'SUPER_ADMIN',
+ *   'CAFE_OWNER'
+ * )
+ *
+ * The user must:
+ * 1. Be authenticated
+ * 2. Have a valid role
+ * 3. Have a non-deleted role
+ * 4. Have one of the required roles
+ */
 export const requireRoles = (
   ...allowedRoles: string[]
 ) => {
@@ -14,39 +35,86 @@ export const requireRoles = (
     next: NextFunction
   ) => {
     try {
+      // =====================================================
+      // 1. Check Authentication
+      // =====================================================
+
       if (!req.user) {
         return res.status(401).json({
           success: false,
-          message: 'Authentication required',
+          message:
+            'Authentication required',
         });
       }
 
-      const prisma =
-        (await import('../config/prisma')).default;
+      // =====================================================
+      // 2. Make Sure Allowed Roles Were Provided
+      // =====================================================
+
+      if (allowedRoles.length === 0) {
+        console.error(
+          'Role middleware error: No allowed roles provided'
+        );
+
+        return res.status(500).json({
+          success: false,
+          message:
+            'Role authorization is not configured correctly',
+        });
+      }
+
+      // =====================================================
+      // 3. Get Current Role From Database
+      // =====================================================
 
       const role =
         await prisma.role.findFirst({
           where: {
             id: req.user.roleId,
+
+            // Soft-delete protection
             deleted_at: null,
           },
         });
 
+      // =====================================================
+      // 4. Check Role Exists
+      // =====================================================
+
       if (!role) {
         return res.status(403).json({
           success: false,
-          message: 'User role not found',
+          message:
+            'User role not found or inactive',
         });
       }
 
-      if (
-        !allowedRoles.includes(role.name)
-      ) {
+      // =====================================================
+      // 5. Check Role Name
+      // =====================================================
+
+      const hasRequiredRole =
+        allowedRoles.some(
+          (allowedRole) =>
+            allowedRole.toLowerCase() ===
+            role.name.toLowerCase()
+        );
+
+      // =====================================================
+      // 6. Reject Unauthorized Role
+      // =====================================================
+
+      if (!hasRequiredRole) {
         return res.status(403).json({
           success: false,
-          message: 'You do not have permission to perform this action',
+          message:
+            'You do not have permission to perform this action',
         });
       }
+
+      // =====================================================
+      // 7. Continue
+      // =====================================================
 
       next();
     } catch (error) {
@@ -57,7 +125,8 @@ export const requireRoles = (
 
       return res.status(500).json({
         success: false,
-        message: 'Failed to verify user role',
+        message:
+          'Failed to verify user role',
       });
     }
   };

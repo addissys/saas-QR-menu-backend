@@ -12,6 +12,8 @@ import {
 
 import { authenticate } from '../middleware/auth.middleware';
 
+import { authRateLimiter } from '../middleware/security.middleware';
+
 const router = Router();
 
 /*
@@ -22,16 +24,19 @@ const router = Router();
 
 router.post(
   '/register',
+  authRateLimiter,
   register
 );
 
 router.post(
   '/login',
+  authRateLimiter,
   login
 );
 
 router.post(
   '/refresh-token',
+  authRateLimiter,
   refreshToken
 );
 
