@@ -45,38 +45,40 @@ enum NotificationType {
 // ==========================================
 
 model User {
-  id                String         @id @default(uuid()) @db.Uuid
-  role_id           String         @db.Uuid
-  full_name         String         @db.VarChar(255)
-  email             String         @unique @db.VarChar(255)
-  phone             String?        @unique @db.VarChar(20)
-  password          String         @db.VarChar(255)
-  profile_image     String?        @db.VarChar(500)
-  email_verified_at DateTime?      @db.Timestamp()
-  is_active         Boolean        @default(true)
-  created_at        DateTime       @default(now()) @db.Timestamp()
-  updated_at        DateTime       @default(now()) @updatedAt @db.Timestamp()
-  deleted_at        DateTime?      @db.Timestamp()
+  id                String    @id @default(uuid()) @db.Uuid
+  role_id           String    @db.Uuid
+  full_name         String    @db.VarChar(255)
+  email             String    @unique @db.VarChar(255)
+  phone             String?   @unique @db.VarChar(20)
+  password          String    @db.VarChar(255)
+  profile_image     String?   @db.VarChar(500)
+  email_verified_at DateTime? @db.Timestamp()
+
+  is_active  Boolean   @default(true)
+  created_at DateTime  @default(now()) @db.Timestamp()
+  updated_at DateTime  @default(now()) @updatedAt @db.Timestamp()
+  deleted_at DateTime? @db.Timestamp()
 
   // Relations
-  role              Role           @relation(fields: [role_id], references: [id])
-  user_sessions     UserSession[]
-  owned_tenants     Tenant[]       @relation("TenantOwner")
-  staff_profile     Staff[]
-  generated_qrs     QrCode[]       @relation("QrGenerator")
-  notifications     Notification[]
-  audit_logs        AuditLog[]
+  role                  Role                 @relation(fields: [role_id], references: [id])
+  user_sessions         UserSession[]
+  owned_tenants         Tenant[]             @relation("TenantOwner")
+  staff_profile         Staff[]
+  password_reset_tokens PasswordResetToken[]
+  generated_qrs         QrCode[]             @relation("QrGenerator")
+  notifications         Notification[]
+  audit_logs            AuditLog[]
 
   @@map("users")
 }
 
 model Role {
-  id          String           @id @default(uuid()) @db.Uuid
-  name        String           @unique @db.VarChar(255)
-  description String?          @db.Text
-  created_at  DateTime         @default(now()) @db.Timestamp()
-  updated_at  DateTime         @default(now()) @updatedAt @db.Timestamp()
-  deleted_at  DateTime?        @db.Timestamp()
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @unique @db.VarChar(255)
+  description String?   @db.Text
+  created_at  DateTime  @default(now()) @db.Timestamp()
+  updated_at  DateTime  @default(now()) @updatedAt @db.Timestamp()
+  deleted_at  DateTime? @db.Timestamp()
 
   // Relations
   users       User[]
@@ -99,37 +101,53 @@ model UserSession {
   created_at    DateTime  @default(now()) @db.Timestamp()
 
   // Relations
-  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("user_sessions")
 }
 
-model Permission {
-  id          String           @id @default(uuid()) @db.Uuid
-  permission  String           @db.VarChar(255)
-  module      String           @db.VarChar(255)
-  action      String           @db.VarChar(255)
-  description String?          @db.Text
-  created_at  DateTime         @default(now()) @db.Timestamp()
-  updated_at  DateTime         @default(now()) @updatedAt @db.Timestamp()
-  deleted_at  DateTime?        @db.Timestamp()
+model PasswordResetToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  token_hash String    @unique @db.Text
+  expires_at DateTime  @db.Timestamp()
+  used_at    DateTime? @db.Timestamp()
+  created_at DateTime  @default(now()) @db.Timestamp()
 
   // Relations
-  roles       RolePermission[]
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+  @@map("password_reset_tokens")
+}
+
+model Permission {
+  id          String    @id @default(uuid()) @db.Uuid
+  permission  String    @db.VarChar(255)
+  module      String    @db.VarChar(255)
+  action      String    @db.VarChar(255)
+  description String?   @db.Text
+  created_at  DateTime  @default(now()) @db.Timestamp()
+  updated_at  DateTime  @default(now()) @updatedAt @db.Timestamp()
+  deleted_at  DateTime? @db.Timestamp()
+
+  // Relations
+  roles RolePermission[]
 
   @@map("permissions")
 }
 
 model RolePermission {
-  role_id       String     @db.Uuid
-  permission_id String     @db.Uuid
-  created_at    DateTime   @default(now()) @db.Timestamp()
-  updated_at    DateTime   @default(now()) @updatedAt @db.Timestamp()
-  deleted_at    DateTime?  @db.Timestamp()
+  role_id       String    @db.Uuid
+  permission_id String    @db.Uuid
+  created_at    DateTime  @default(now()) @db.Timestamp()
+  updated_at    DateTime  @default(now()) @updatedAt @db.Timestamp()
+  deleted_at    DateTime? @db.Timestamp()
 
   // Relations
-  role          Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
-  permission    Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade)
 
   @@id([role_id, permission_id])
   @@map("role_permissions")
@@ -158,9 +176,9 @@ model Tenant {
   deleted_at    DateTime?    @db.Timestamp()
 
   // Relations
-  owner         User         @relation("TenantOwner", fields: [owner_id], references: [id])
-  branches      Branch[]
-  audit_logs    AuditLog[]
+  owner      User       @relation("TenantOwner", fields: [owner_id], references: [id])
+  branches   Branch[]
+  audit_logs AuditLog[]
 
   @@map("tenants")
 }
@@ -185,12 +203,12 @@ model Branch {
   deleted_at  DateTime?    @db.Timestamp()
 
   // Relations
-  tenant      Tenant       @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  manager     Staff?       @relation("BranchManager", fields: [manager_id], references: [id])
-  staff       Staff[]      @relation("BranchStaff")
-  tables      Table[]
-  categories  Category[]
-  menu_items  MenuItem[]
+  tenant     Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  manager    Staff?     @relation("BranchManager", fields: [manager_id], references: [id])
+  staff      Staff[]    @relation("BranchStaff")
+  tables     Table[]
+  categories Category[]
+  menu_items MenuItem[]
 
   @@map("branches")
 }
@@ -208,10 +226,10 @@ model Staff {
   deleted_at        DateTime?        @db.Timestamp()
 
   // Relations
-  user              User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  role              Role             @relation(fields: [role_id], references: [id])
-  branch            Branch?          @relation("BranchStaff", fields: [branch_id], references: [id])
-  managed_branches  Branch[]         @relation("BranchManager")
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role             Role     @relation(fields: [role_id], references: [id])
+  branch           Branch?  @relation("BranchStaff", fields: [branch_id], references: [id])
+  managed_branches Branch[] @relation("BranchManager")
 
   @@map("staff")
 }
@@ -225,8 +243,8 @@ model Table {
   deleted_at   DateTime? @db.Timestamp()
 
   // Relations
-  branch       Branch    @relation(fields: [branch_id], references: [id], onDelete: Cascade)
-  qr_code      QrCode?
+  branch  Branch  @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  qr_code QrCode?
 
   @@map("tables")
 }
@@ -244,8 +262,8 @@ model QrCode {
   deleted_at   DateTime? @db.Timestamp()
 
   // Relations
-  table        Table     @relation(fields: [table_id], references: [id], onDelete: Cascade)
-  generator    User      @relation("QrGenerator", fields: [generated_by], references: [id])
+  table     Table @relation(fields: [table_id], references: [id], onDelete: Cascade)
+  generator User  @relation("QrGenerator", fields: [generated_by], references: [id])
 
   @@map("qr_codes")
 }
@@ -255,19 +273,19 @@ model QrCode {
 // ==========================================
 
 model Category {
-  id          String     @id @default(uuid()) @db.Uuid
-  branch_id   String     @db.Uuid
-  name        String     @db.VarChar(255)
-  description String?    @db.VarChar(200)
-  sort_order  Int        @default(0)
-  is_active   Boolean    @default(true)
-  created_at  DateTime   @default(now()) @db.Timestamp()
-  updated_at  DateTime   @default(now()) @updatedAt @db.Timestamp()
-  deleted_at  DateTime?  @db.Timestamp()
+  id          String    @id @default(uuid()) @db.Uuid
+  branch_id   String    @db.Uuid
+  name        String    @db.VarChar(255)
+  description String?   @db.VarChar(200)
+  sort_order  Int       @default(0)
+  is_active   Boolean   @default(true)
+  created_at  DateTime  @default(now()) @db.Timestamp()
+  updated_at  DateTime  @default(now()) @updatedAt @db.Timestamp()
+  deleted_at  DateTime? @db.Timestamp()
 
   // Relations
-  branch      Branch     @relation(fields: [branch_id], references: [id], onDelete: Cascade)
-  menu_items  MenuItem[]
+  branch     Branch     @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  menu_items MenuItem[]
 
   @@map("categories")
 }
@@ -288,8 +306,8 @@ model MenuItem {
   deleted_at       DateTime? @db.Timestamp()
 
   // Relations
-  branch           Branch    @relation(fields: [branch_id], references: [id], onDelete: Cascade)
-  category         Category  @relation(fields: [category_id], references: [id], onDelete: Cascade)
+  branch   Branch   @relation(fields: [branch_id], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [category_id], references: [id], onDelete: Cascade)
 
   @@map("menu_items")
 }
@@ -310,7 +328,7 @@ model Notification {
   deleted_at DateTime?        @db.Timestamp()
 
   // Relations
-  user       User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("notifications")
 }
@@ -330,8 +348,8 @@ model AuditLog {
   created_at  DateTime @default(now()) @db.Timestamp()
 
   // Relations
-  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  tenant      Tenant?  @relation(fields: [tenant_id], references: [id], onDelete: SetNull)
+  user   User    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  tenant Tenant? @relation(fields: [tenant_id], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
 }

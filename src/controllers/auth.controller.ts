@@ -9,6 +9,7 @@ import {
   updateProfileSchema,
   changePasswordSchema,
   refreshTokenSchema,
+  forgotPasswordSchema,
 } from '../validators/auth.validator';
 
 import {
@@ -19,6 +20,7 @@ import {
   getCurrentUser,
   updateProfile,
   changePassword,
+  forgotPassword,
 } from '../services/auth.service';
 
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
@@ -387,6 +389,47 @@ export const updatePassword = async (
     return res.status(500).json({
       success: false,
       message: 'Failed to change password',
+    });
+  }
+};
+
+/**
+ * Forgot password
+ */
+export const forgotPasswordRequest = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const validation =
+      forgotPasswordSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validation.error.issues,
+      });
+    }
+
+    await forgotPassword(
+      validation.data.email.toLowerCase().trim()
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        'If this email is registered, a password reset link has been sent.',
+    });
+  } catch (error: any) {
+    console.error(
+      'Forgot password error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to process forgot password request',
     });
   }
 };

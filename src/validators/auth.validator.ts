@@ -66,3 +66,12 @@ export const refreshTokenSchema = z.object({
     .string()
     .min(1),
 });
+
+/**
+ * Forgot Password
+ */
+export const forgotPasswordSchema = z.object({
+  email: z
+    .string()
+    .email('Invalid email address'),
+});
