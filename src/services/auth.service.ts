@@ -508,3 +508,73 @@ export const forgotPassword = async (
     resetLink
   );
 };
+
+/**
+ * Reset Password
+ *
+ * Validates the plain token from the URL (by hashing it and comparing
+ * with the stored hash), updates the user's password, marks the token
+ * as used, and revokes all active sessions.
+ */
+export const resetPassword = async (
+  plainToken: string,
+  newPassword: string
+) => {
+  // Re-hash the plain token the same way forgotPassword stored it
+  const tokenHash = crypto
+    .createHash('sha256')
+    .update(plainToken)
+    .digest('hex');
+
+  // Find a valid, unused reset token record
+  const record =
+    await prisma.passwordResetToken.findFirst({
+      where: {
+        token_hash: tokenHash,
+        used_at: null,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+  if (!record) {
+    throw new Error('Invalid or expired reset token');
+  }
+
+  // Check expiry
+  if (record.expires_at < new Date()) {
+    throw new Error('Reset token has expired');
+  }
+
+  // Check user is still active
+  if (!record.user.is_active || record.user.deleted_at) {
+    throw new Error('User account is inactive');
+  }
+
+  const newPasswordHash = await hashPassword(newPassword);
+
+  // Update password and mark token as used in a transaction
+  await prisma.$transaction([
+    // Update the user's password
+    prisma.user.update({
+      where: { id: record.user_id },
+      data: { password: newPasswordHash },
+    }),
+
+    // Mark this token as consumed
+    prisma.passwordResetToken.update({
+      where: { id: record.id },
+      data: { used_at: new Date() },
+    }),
+
+    // Revoke all active sessions so the old password can't be reused
+    prisma.userSession.updateMany({
+      where: {
+        user_id: record.user_id,
+        revoked_at: null,
+      },
+      data: { revoked_at: new Date() },
+    }),
+  ]);
+};

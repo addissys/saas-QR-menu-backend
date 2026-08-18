@@ -10,6 +10,7 @@ import {
   changePasswordSchema,
   refreshTokenSchema,
   forgotPasswordSchema,
+  resetPasswordSchema,
 } from '../validators/auth.validator';
 
 import {
@@ -21,6 +22,7 @@ import {
   updateProfile,
   changePassword,
   forgotPassword,
+  resetPassword,
 } from '../services/auth.service';
 
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
@@ -430,6 +432,65 @@ export const forgotPasswordRequest = async (
     return res.status(500).json({
       success: false,
       message: 'Failed to process forgot password request',
+    });
+  }
+};
+
+/**
+ * Reset password
+ */
+export const resetPasswordHandler = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const validation =
+      resetPasswordSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validation.error.issues,
+      });
+    }
+
+    await resetPassword(
+      validation.data.token,
+      validation.data.new_password
+    );
+
+    return res.status(200).json({
+      success: true,
+      message:
+        'Password reset successfully. Please log in with your new password.',
+    });
+  } catch (error: any) {
+    console.error(
+      'Reset password error:',
+      error
+    );
+
+    if (
+      error.message === 'Invalid or expired reset token' ||
+      error.message === 'Reset token has expired'
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    if (error.message === 'User account is inactive') {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to reset password',
     });
   }
 };

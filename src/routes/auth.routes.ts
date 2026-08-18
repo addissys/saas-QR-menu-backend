@@ -9,6 +9,7 @@ import {
   updateUserProfile,
   updatePassword,
   forgotPasswordRequest,
+  resetPasswordHandler,
 } from '../controllers/auth.controller';
 
 import { authenticate } from '../middleware/auth.middleware';
@@ -177,6 +178,76 @@ router.post(
   '/forgot-password',
   authRateLimiter,
   forgotPasswordRequest
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/reset-password:
+ *   post:
+ *     summary: Reset password using a token from the reset email
+ *     tags: [Auth]
+ *     description: |
+ *       Submit the plain token received in the reset-password email link
+ *       along with the new password. The token is single-use and expires
+ *       after 15 minutes. On success, all existing sessions are revoked.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *               - new_password
+ *               - confirm_password
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: The plain reset token from the email link
+ *                 example: a1b2c3d4e5f6...
+ *               new_password:
+ *                 type: string
+ *                 minLength: 8
+ *                 example: newSecurePass123
+ *               confirm_password:
+ *                 type: string
+ *                 example: newSecurePass123
+ *     responses:
+ *       200:
+ *         description: Password reset successfully — user must log in again
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Password reset successfully. Please log in with your new password.
+ *       400:
+ *         description: Validation failed, token is invalid, or token has expired
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: Invalid or expired reset token
+ *       403:
+ *         description: User account is inactive
+ *       500:
+ *         description: Failed to reset password
+ */
+router.post(
+  '/reset-password',
+  authRateLimiter,
+  resetPasswordHandler
 );
 
 /*
