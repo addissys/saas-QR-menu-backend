@@ -1,0 +1,250 @@
+import { Request, Response } from 'express';
+
+import {
+  getAllBranches,
+  getBranchById,
+  createBranch,
+  updateBranch,
+  softDeleteBranch,
+} from '../services/branch.service';
+
+import {
+  createBranchSchema,
+  updateBranchSchema,
+} from '../validators/branch.validator';
+
+export const listBranches = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const page = Math.max(
+      Number(req.query.page) || 1,
+      1
+    );
+
+    const limit = Math.min(
+      Math.max(
+        Number(req.query.limit) || 10,
+        1
+      ),
+      100
+    );
+
+    const tenant_id =
+      typeof req.query.tenant_id === 'string'
+        ? req.query.tenant_id
+        : undefined;
+
+    const search =
+      typeof req.query.search === 'string'
+        ? req.query.search.trim()
+        : undefined;
+
+    const status =
+      typeof req.query.status === 'string'
+        ? req.query.status as
+            | 'ACTIVE'
+            | 'INACTIVE'
+            | 'MAINTENANCE'
+        : undefined;
+
+    const result = await getAllBranches({
+      page,
+      limit,
+      tenant_id,
+      search,
+      status,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Branches retrieved successfully',
+      data: result,
+    });
+  } catch (error) {
+    console.error(
+      'List branches error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve branches',
+    });
+  }
+};
+
+export const getBranch = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = req.params.id;
+
+    if (typeof id !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid branch ID',
+      });
+    }
+
+    const branch = await getBranchById(id);
+
+    if (!branch) {
+      return res.status(404).json({
+        success: false,
+        message: 'Branch not found',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Branch retrieved successfully',
+      data: {
+        branch,
+      },
+    });
+  } catch (error) {
+    console.error(
+      'Get branch error:',
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve branch',
+    });
+  }
+};
+
+export const createBranchController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const validation =
+      createBranchSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid request data',
+        errors:
+          validation.error.flatten(),
+      });
+    }
+
+    const branch = await createBranch(
+      validation.data
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Branch created successfully',
+      data: {
+        branch,
+      },
+    });
+  } catch (error: any) {
+    console.error(
+      'Create branch error:',
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        'Failed to create branch',
+    });
+  }
+};
+
+export const updateBranchController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = req.params.id;
+
+    if (typeof id !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid branch ID',
+      });
+    }
+
+    const validation =
+      updateBranchSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid request data',
+        errors:
+          validation.error.flatten(),
+      });
+    }
+
+    const branch = await updateBranch(
+      id,
+      validation.data
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Branch updated successfully',
+      data: {
+        branch,
+      },
+    });
+  } catch (error: any) {
+    console.error(
+      'Update branch error:',
+      error
+    );
+
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message ||
+        'Failed to update branch',
+    });
+  }
+};
+
+export const deleteBranch = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = req.params.id;
+
+    if (typeof id !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid branch ID',
+      });
+    }
+
+    await softDeleteBranch(id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Branch deleted successfully',
+    });
+  } catch (error: any) {
+    console.error(
+      'Delete branch error:',
+      error
+    );
+
+    return res.status(404).json({
+      success: false,
+      message:
+        error.message ||
+        'Failed to delete branch',
+    });
+  }
+};
