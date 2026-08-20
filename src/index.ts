@@ -19,6 +19,8 @@ import menuItemRoutes from './routes/menu-item.routes';
 import tableRoutes from './routes/table.routes';
 import qrRoutes from './routes/qr.routes';
 import imageRoutes from './routes/image.routes';
+import userRoutes from './routes/user.routes';
+import userRoleRoutes from './routes/user-role.routes';
 import path from 'path';
 import {
   securityHeaders,
@@ -152,6 +154,15 @@ app.use(
   '/api/v1/notifications',
   notificationRoutes
 );
+
+//---users---//
+app.use(
+  '/api/v1/users', 
+  userRoutes
+);
+
+//--user roles--//
+app.use('/api/v1/user-roles', userRoleRoutes);
 
 app.use(
   '/api/v1/audit-logs',
