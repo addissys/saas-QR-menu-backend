@@ -6,6 +6,7 @@ import adminRoutes from './routes/admin.routes';
 import publicMenuRoutes from './routes/public-menu.routes';
 import notificationRoutes from './routes/notification.routes';
 import auditLogRoutes from './routes/audit-log.routes';
+import rolePermissionRoutes from './routes/role-permission.routes';
 import {
   securityHeaders,
   apiRateLimiter,
@@ -85,6 +86,8 @@ app.use(
   '/api/v1/audit-logs',
   auditLogRoutes
 );
+
+app.use('/api/v1', rolePermissionRoutes);
 
 app.get('/health', (req, res) => {
   res.json({

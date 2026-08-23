@@ -31,3 +31,68 @@ export const adminSearchSchema = z.object({
 });
 
 export type AdminSearchQuery = z.infer<typeof adminSearchSchema>;
+
+
+export const createTenantSchema = z.object({
+  owner_id: z.string().uuid(),
+
+  business_name: z
+    .string()
+    .min(2, 'Business name must be at least 2 characters')
+    .max(255),
+
+  business_slug: z
+    .string()
+    .min(2)
+    .max(100)
+    .regex(
+      /^[a-z0-9-]+$/,
+      'Business slug can only contain lowercase letters, numbers, and hyphens'
+    ),
+
+  logo_url: z.string().url().optional(),
+
+  brand_color: z.string().max(30).optional(),
+
+  email: z.string().email(),
+
+  phone: z.string().max(20).optional(),
+
+  address: z.string().max(255),
+
+  city: z.string().max(100),
+
+  country: z.string().max(100),
+});
+
+export const updateTenantSchema = z.object({
+  business_name: z
+    .string()
+    .min(2)
+    .max(255)
+    .optional(),
+
+  business_slug: z
+    .string()
+    .min(2)
+    .max(100)
+    .regex(
+      /^[a-z0-9-]+$/,
+      'Business slug can only contain lowercase letters, numbers, and hyphens'
+    )
+    .optional(),
+
+  logo_url: z.string().url().optional(),
+
+  brand_color: z.string().max(30).optional(),
+
+  email: z.string().email().optional(),
+
+  phone: z.string().max(20).optional(),
+
+  address: z.string().max(255).optional(),
+
+  city: z.string().max(100).optional(),
+
+  country: z.string().max(100).optional(),
+});

@@ -35,9 +35,7 @@ export const requireRoles = (
     next: NextFunction
   ) => {
     try {
-      // =====================================================
       // 1. Check Authentication
-      // =====================================================
 
       if (!req.user) {
         return res.status(401).json({
@@ -47,9 +45,8 @@ export const requireRoles = (
         });
       }
 
-      // =====================================================
+      
       // 2. Make Sure Allowed Roles Were Provided
-      // =====================================================
 
       if (allowedRoles.length === 0) {
         console.error(
@@ -63,9 +60,7 @@ export const requireRoles = (
         });
       }
 
-      // =====================================================
       // 3. Get Current Role From Database
-      // =====================================================
 
       const role =
         await prisma.role.findFirst({
@@ -77,9 +72,8 @@ export const requireRoles = (
           },
         });
 
-      // =====================================================
+      
       // 4. Check Role Exists
-      // =====================================================
 
       if (!role) {
         return res.status(403).json({
@@ -89,9 +83,8 @@ export const requireRoles = (
         });
       }
 
-      // =====================================================
+      
       // 5. Check Role Name
-      // =====================================================
 
       const hasRequiredRole =
         allowedRoles.some(
@@ -100,9 +93,8 @@ export const requireRoles = (
             role.name.toLowerCase()
         );
 
-      // =====================================================
+      
       // 6. Reject Unauthorized Role
-      // =====================================================
 
       if (!hasRequiredRole) {
         return res.status(403).json({
@@ -112,9 +104,8 @@ export const requireRoles = (
         });
       }
 
-      // =====================================================
+    
       // 7. Continue
-      // =====================================================
 
       next();
     } catch (error) {
