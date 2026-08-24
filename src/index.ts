@@ -9,6 +9,7 @@ import adminRoutes from './routes/admin.routes';
 import publicMenuRoutes from './routes/public-menu.routes';
 import notificationRoutes from './routes/notification.routes';
 import auditLogRoutes from './routes/audit-log.routes';
+import rolePermissionRoutes from './routes/role-permission.routes';
 import tenantRoutes from './routes/tenant.routes';
 import branchRoutes from './routes/branch.routes';
 import executiveRoutes from './routes/executive.routes';
@@ -168,6 +169,8 @@ app.use(
   '/api/v1/audit-logs',
   auditLogRoutes
 );
+
+app.use('/api/v1', rolePermissionRoutes);
 
 //_________________//
 app.use(
