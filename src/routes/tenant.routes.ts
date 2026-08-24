@@ -1,77 +1,28 @@
 import { Router } from 'express';
-import { getDashboard } from '../controllers/admin.controller';
-import {
-  searchAdminPlatform,
-} from '../controllers/admin.controller';
 
 import {
   listTenants,
   getTenant,
   createTenantController,
   updateTenantController,
-  deleteTenant,
-} from '../controllers/admin.controller';
+  removeTenant,
+} from '../controllers/tenant.controller';
 
 const router = Router();
 
 /**
  * @swagger
  * tags:
- *   name: Admin
- *   description: Admin dashboard and tenant management
+ *   name: Tenants
+ *   description: SaaS tenant (restaurant) management
  */
 
 /**
  * @swagger
- * /api/v1/admin/dashboard:
+ * /api/v1/tenants:
  *   get:
- *     summary: Get admin dashboard statistics
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Dashboard data retrieved successfully
- *       500:
- *         description: Failed to load dashboard
- */
-router.get('/dashboard', getDashboard);
-
-/**
- * @swagger
- * /api/v1/admin/search:
- *   get:
- *     summary: Search across the admin platform (tenants, users, etc.)
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: q
- *         schema:
- *           type: string
- *         required: true
- *         description: Search keyword
- *     responses:
- *       200:
- *         description: Search results returned
- *       400:
- *         description: Search query is required
- *       500:
- *         description: Search failed
- */
-router.get('/search', searchAdminPlatform);
-
-// ================================
-// Tenant Management
-// ================================
-
-/**
- * @swagger
- * /api/v1/admin/tenants:
- *   get:
- *     summary: List all tenants
- *     tags: [Admin]
+ *     summary: List all tenants (restaurants)
+ *     tags: [Tenants]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -80,33 +31,38 @@ router.get('/search', searchAdminPlatform);
  *         schema:
  *           type: integer
  *           default: 1
+ *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           default: 10
+ *         description: Items per page
  *       - in: query
  *         name: status
  *         schema:
  *           type: string
  *           enum: [PENDING, TRIAL, ACTIVE, SUSPENDED, INACTIVE]
+ *         description: Filter by tenant status
  *     responses:
  *       200:
  *         description: Tenants listed successfully
+ *       401:
+ *         description: Authentication required
  *       500:
  *         description: Failed to fetch tenants
  */
 router.get(
-  '/tenants',
+  '/',
   listTenants
 );
 
 /**
  * @swagger
- * /api/v1/admin/tenants/{id}:
+ * /api/v1/tenants/{id}:
  *   get:
- *     summary: Get a single tenant by ID
- *     tags: [Admin]
+ *     summary: Get a single tenant (restaurant) by ID
+ *     tags: [Tenants]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -120,22 +76,24 @@ router.get(
  *     responses:
  *       200:
  *         description: Tenant retrieved successfully
+ *       401:
+ *         description: Authentication required
  *       404:
  *         description: Tenant not found
  *       500:
  *         description: Failed to fetch tenant
  */
 router.get(
-  '/tenants/:id',
+  '/:id',
   getTenant
 );
 
 /**
  * @swagger
- * /api/v1/admin/tenants:
+ * /api/v1/tenants:
  *   post:
- *     summary: Create a new tenant
- *     tags: [Admin]
+ *     summary: Register a new restaurant (tenant)
+ *     tags: [Tenants]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -156,12 +114,77 @@ router.get(
  *               owner_id:
  *                 type: string
  *                 format: uuid
+ *                 example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
  *               business_name:
  *                 type: string
- *                 example: My Cafe
+ *                 example: Addis Coffee House
  *               business_slug:
  *                 type: string
- *                 example: my-cafe
+ *                 example: addis-coffee-house
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: contact@addiscoffee.com
+ *               phone:
+ *                 type: string
+ *                 example: "+251911000000"
+ *               address:
+ *                 type: string
+ *                 example: Bole Road, Addis Ababa
+ *               city:
+ *                 type: string
+ *                 example: Addis Ababa
+ *               country:
+ *                 type: string
+ *                 example: Ethiopia
+ *               logo_url:
+ *                 type: string
+ *                 example: https://example.com/logo.png
+ *               brand_color:
+ *                 type: string
+ *                 example: "#FF6B35"
+ *     responses:
+ *       201:
+ *         description: Tenant registered successfully
+ *       400:
+ *         description: Validation failed
+ *       401:
+ *         description: Authentication required
+ *       409:
+ *         description: Slug or email already taken
+ *       500:
+ *         description: Failed to create tenant
+ */
+router.post(
+  '/',
+  createTenantController
+);
+
+/**
+ * @swagger
+ * /api/v1/tenants/{id}:
+ *   patch:
+ *     summary: Update a restaurant (tenant)
+ *     tags: [Tenants]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Tenant UUID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               business_name:
+ *                 type: string
  *               email:
  *                 type: string
  *                 format: email
@@ -177,45 +200,6 @@ router.get(
  *                 type: string
  *               brand_color:
  *                 type: string
- *     responses:
- *       201:
- *         description: Tenant created successfully
- *       400:
- *         description: Validation failed
- *       409:
- *         description: Slug or email already taken
- *       500:
- *         description: Failed to create tenant
- */
-router.post(
-  '/tenants',
-  createTenantController
-);
-
-/**
- * @swagger
- * /api/v1/admin/tenants/{id}:
- *   patch:
- *     summary: Update a tenant
- *     tags: [Admin]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               business_name:
- *                 type: string
  *               status:
  *                 type: string
  *                 enum: [PENDING, TRIAL, ACTIVE, SUSPENDED, INACTIVE]
@@ -226,22 +210,24 @@ router.post(
  *         description: Tenant updated successfully
  *       400:
  *         description: Validation failed
+ *       401:
+ *         description: Authentication required
  *       404:
  *         description: Tenant not found
  *       500:
  *         description: Failed to update tenant
  */
 router.patch(
-  '/tenants/:id',
+  '/:id',
   updateTenantController
 );
 
 /**
  * @swagger
- * /api/v1/admin/tenants/{id}:
+ * /api/v1/tenants/{id}:
  *   delete:
- *     summary: Soft delete a tenant
- *     tags: [Admin]
+ *     summary: Soft delete a restaurant (tenant)
+ *     tags: [Tenants]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -251,18 +237,20 @@ router.patch(
  *         schema:
  *           type: string
  *           format: uuid
+ *         description: Tenant UUID
  *     responses:
  *       200:
  *         description: Tenant deleted successfully
+ *       401:
+ *         description: Authentication required
  *       404:
  *         description: Tenant not found
  *       500:
  *         description: Failed to delete tenant
  */
 router.delete(
-  '/tenants/:id',
-  deleteTenant
+  '/:id',
+  removeTenant
 );
-
 
 export default router;

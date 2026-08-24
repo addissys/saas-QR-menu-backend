@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 
 import prisma from '../config/prisma';
 import {
@@ -10,6 +11,7 @@ import {
   comparePassword,
   hashPassword,
 } from '../utils/password';
+import { sendPasswordResetEmail } from './email.service';
 
 /**
  * Register Cafe Owner
@@ -441,4 +443,138 @@ export const changePassword = async (
       revoked_at: new Date(),
     },
   });
+};
+
+/**
+ * Forgot Password
+ */
+export const forgotPassword = async (
+  email: string
+) => {
+  // Find user by email
+  const user = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+  });
+
+  /*
+   * Do not reveal whether the email exists.
+   *
+   * This prevents attackers from discovering
+   * registered email addresses.
+   */
+  if (!user) {
+    return;
+  }
+
+  // Generate secure random token
+  const resetToken =
+    crypto.randomBytes(32).toString('hex');
+
+  // Hash token before storing it in database
+  const tokenHash = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  // Token expires after 15 minutes
+  const expiresAt = new Date(
+    Date.now() + 15 * 60 * 1000
+  );
+
+  // Delete previous unused reset tokens
+  await prisma.passwordResetToken.deleteMany({
+    where: {
+      user_id: user.id,
+      used_at: null,
+    },
+  });
+
+  // Store hashed token
+  await prisma.passwordResetToken.create({
+    data: {
+      user_id: user.id,
+      token_hash: tokenHash,
+      expires_at: expiresAt,
+    },
+  });
+
+  const resetLink =
+    `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+  await sendPasswordResetEmail(
+    user.email,
+    resetLink
+  );
+};
+
+/**
+ * Reset Password
+ *
+ * Validates the plain token from the URL (by hashing it and comparing
+ * with the stored hash), updates the user's password, marks the token
+ * as used, and revokes all active sessions.
+ */
+export const resetPassword = async (
+  plainToken: string,
+  newPassword: string
+) => {
+  // Re-hash the plain token the same way forgotPassword stored it
+  const tokenHash = crypto
+    .createHash('sha256')
+    .update(plainToken)
+    .digest('hex');
+
+  // Find a valid, unused reset token record
+  const record =
+    await prisma.passwordResetToken.findFirst({
+      where: {
+        token_hash: tokenHash,
+        used_at: null,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+  if (!record) {
+    throw new Error('Invalid or expired reset token');
+  }
+
+  // Check expiry
+  if (record.expires_at < new Date()) {
+    throw new Error('Reset token has expired');
+  }
+
+  // Check user is still active
+  if (!record.user.is_active || record.user.deleted_at) {
+    throw new Error('User account is inactive');
+  }
+
+  const newPasswordHash = await hashPassword(newPassword);
+
+  // Update password and mark token as used in a transaction
+  await prisma.$transaction([
+    // Update the user's password
+    prisma.user.update({
+      where: { id: record.user_id },
+      data: { password: newPasswordHash },
+    }),
+
+    // Mark this token as consumed
+    prisma.passwordResetToken.update({
+      where: { id: record.id },
+      data: { used_at: new Date() },
+    }),
+
+    // Revoke all active sessions so the old password can't be reused
+    prisma.userSession.updateMany({
+      where: {
+        user_id: record.user_id,
+        revoked_at: null,
+      },
+      data: { revoked_at: new Date() },
+    }),
+  ]);
 };
