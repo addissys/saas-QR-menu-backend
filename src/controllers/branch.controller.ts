@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 import {
   getAllBranches,
@@ -18,6 +19,9 @@ export const listBranches = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
+
     const page = Math.max(
       Number(req.query.page) || 1,
       1
@@ -31,23 +35,34 @@ export const listBranches = async (
       100
     );
 
-    const tenant_id =
+    let tenant_id =
       typeof req.query.tenant_id === 'string'
         ? req.query.tenant_id
         : undefined;
+
+    // Strict Tenant Isolation: Auto-scope non-superadmin users to their own restaurant
+    if (!isSuperAdmin && authReq.user?.tenantId) {
+      tenant_id = authReq.user.tenantId;
+    }
 
     const search =
       typeof req.query.search === 'string'
         ? req.query.search.trim()
         : undefined;
 
+    // Optional status filter (ACTIVE, INACTIVE, MAINTENANCE)
     const status =
-      typeof req.query.status === 'string'
-        ? req.query.status as
-            | 'ACTIVE'
-            | 'INACTIVE'
-            | 'MAINTENANCE'
+      typeof req.query.status === 'string' &&
+      ['ACTIVE', 'INACTIVE', 'MAINTENANCE'].includes(req.query.status.toUpperCase())
+        ? (req.query.status.toUpperCase() as 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE')
         : undefined;
+
+    const userRole = authReq.user?.roleName?.toUpperCase() || '';
+    const isOwnerOrAdmin = ['SUPER_ADMIN', 'CAFE_OWNER', 'OWNER', 'RESTAURANT_OWNER'].includes(userRole);
+
+    const branch_ids = !isOwnerOrAdmin && authReq.user?.assignedBranchIds
+      ? authReq.user.assignedBranchIds
+      : undefined;
 
     const result = await getAllBranches({
       page,
@@ -55,6 +70,7 @@ export const listBranches = async (
       tenant_id,
       search,
       status,
+      branch_ids,
     });
 
     return res.status(200).json({
@@ -123,6 +139,9 @@ export const createBranchController = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
+
     const validation =
       createBranchSchema.safeParse(req.body);
 
@@ -132,6 +151,14 @@ export const createBranchController = async (
         message: 'Invalid request data',
         errors:
           validation.error.flatten(),
+      });
+    }
+
+    // Tenant isolation verification: Cannot create branch for another tenant
+    if (!isSuperAdmin && authReq.user?.tenantId && validation.data.tenant_id !== authReq.user.tenantId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: Cannot create branch for another restaurant organization',
       });
     }
 

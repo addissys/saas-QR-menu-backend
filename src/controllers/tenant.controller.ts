@@ -3,6 +3,8 @@ import {
   Response,
 } from 'express';
 
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
+
 import {
   createTenantSchema,
   updateTenantSchema,
@@ -21,6 +23,9 @@ export const listTenants = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
+
     const page =
       Number(req.query.page) || 1;
 
@@ -32,6 +37,34 @@ export const listTenants = async (
         | string
         | undefined;
 
+    // Non-superadmins can only list their own tenant
+    if (!isSuperAdmin) {
+      const tenantId = authReq.user?.tenantId;
+      if (!tenantId) {
+        return res.status(200).json({
+          success: true,
+          message: 'No restaurant linked to this account',
+          data: { tenants: [], pagination: { page: 1, limit, total: 0, totalPages: 0 } },
+        });
+      }
+
+      const tenant = await getTenantById(tenantId);
+      if (!tenant) {
+        return res.status(200).json({
+          success: true,
+          message: 'Restaurant not found',
+          data: { tenants: [], pagination: { page: 1, limit, total: 0, totalPages: 0 } },
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: 'Tenant retrieved successfully',
+        data: { tenants: [tenant], pagination: { page: 1, limit, total: 1, totalPages: 1 } },
+      });
+    }
+
+    // Superadmins can see all tenants
     const result =
       await getAllTenants(
         page,
@@ -61,9 +94,20 @@ export const getTenant = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
     const id = String(
       req.params.id
     );
+
+    // Non-superadmins can only view their own tenant
+    if (!isSuperAdmin && authReq.user?.tenantId !== id) {
+      return res.status(403).json({
+        success: false,
+        message:
+          'Not authorized to view this restaurant',
+      });
+    }
 
     const tenant =
       await getTenantById(id);
@@ -147,9 +191,20 @@ export const updateTenantController =
     res: Response
   ) => {
     try {
+      const authReq = req as AuthenticatedRequest;
       const id = String(
         req.params.id
       );
+
+      const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
+
+      // Non-superadmins can only update their own tenant
+      if (!isSuperAdmin && authReq.user?.tenantId !== id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to update this restaurant',
+        });
+      }
 
       const validation =
         updateTenantSchema.safeParse(
@@ -198,9 +253,19 @@ export const removeTenant =
     res: Response
   ) => {
     try {
+      const authReq = req as AuthenticatedRequest;
+      const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
       const id = String(
         req.params.id
       );
+
+      // Non-superadmins can only delete their own tenant
+      if (!isSuperAdmin && authReq.user?.tenantId !== id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Not authorized to delete this restaurant',
+        });
+      }
 
       await deleteTenant(id);
 

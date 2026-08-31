@@ -1,7 +1,8 @@
 import prisma from '../config/prisma';
 
 export const getAllTables = async (
-  branchId?: string
+  branchId?: string,
+  tenantId?: string
 ) => {
   return prisma.table.findMany({
     where: {
@@ -9,6 +10,13 @@ export const getAllTables = async (
 
       ...(branchId && {
         branch_id: branchId,
+      }),
+
+      ...(tenantId && {
+        branch: {
+          tenant_id: tenantId,
+          deleted_at: null,
+        },
       }),
     },
 
@@ -22,6 +30,7 @@ export const getAllTables = async (
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
 
@@ -59,6 +68,7 @@ export const getTableById = async (
           branch_name: true,
           branch_code: true,
           city: true,
+          tenant_id: true,
         },
       },
 
@@ -119,6 +129,7 @@ export const createTable = async (data: {
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
     },
@@ -177,6 +188,7 @@ export const updateTable = async (
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
     },

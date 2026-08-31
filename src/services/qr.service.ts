@@ -95,7 +95,7 @@ export const generateTableQr = async (
     'http://localhost:5173';
 
   const publicUrl =
-    `${frontendUrl}/menu/table/${table.id}`;
+    `${frontendUrl}/public/branches/${table.branch_id}/tables/${table.id}/menu`;
 
   const qrImageUrl =
     await QRCode.toDataURL(publicUrl);
@@ -229,7 +229,7 @@ export const regenerateTableQr = async (
     'http://localhost:5173';
 
   const publicUrl =
-    `${frontendUrl}/menu/table/${table.id}`;
+    `${frontendUrl}/public/branches/${table.branch_id}/tables/${table.id}/menu`;
 
   const qrImageUrl =
     await QRCode.toDataURL(publicUrl);
@@ -340,3 +340,139 @@ export const deleteTableQr = async (
     },
   });
 };
+
+/**
+ * List all QR codes
+ */
+export const getAllQrCodes = async (branchId?: string) => {
+  const where: any = {
+    deleted_at: null,
+  };
+
+  if (branchId) {
+    where.table = {
+      branch_id: branchId,
+    };
+  }
+
+  return prisma.qrCode.findMany({
+    where,
+    include: {
+      table: {
+        select: {
+          id: true,
+          table_number: true,
+          branch_id: true,
+          branch: {
+            select: {
+              id: true,
+              branch_name: true,
+            },
+          },
+        },
+      },
+      generator: {
+        select: {
+          id: true,
+          full_name: true,
+          email: true,
+        },
+      },
+    },
+    orderBy: {
+      created_at: 'desc',
+    },
+  });
+};
+
+/**
+ * Get QR code by ID
+ */
+export const getQrCodeById = async (id: string) => {
+  const qr = await prisma.qrCode.findFirst({
+    where: {
+      id,
+      deleted_at: null,
+    },
+    include: {
+      table: {
+        select: {
+          id: true,
+          table_number: true,
+          branch_id: true,
+          branch: {
+            select: {
+              id: true,
+              branch_name: true,
+            },
+          },
+        },
+      },
+      generator: {
+        select: {
+          id: true,
+          full_name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  if (!qr) {
+    throw new Error('QR code not found');
+  }
+
+  return qr;
+};
+
+/**
+ * Download QR image
+ */
+export const downloadQrImage = async (id: string) => {
+  const qr = await getQrCodeById(id);
+  return qr.qr_image_url;
+};
+
+/**
+ * Regenerate QR code by QR code ID
+ */
+export const regenerateQrById = async (id: string, generatedBy: string) => {
+  const qr = await prisma.qrCode.findFirst({
+    where: {
+      id,
+      deleted_at: null,
+    },
+  });
+
+  if (!qr) {
+    throw new Error('QR code not found');
+  }
+
+  return regenerateTableQr(qr.table_id, generatedBy);
+};
+
+/**
+ * Delete QR code by QR code ID
+ */
+export const deleteQrById = async (id: string) => {
+  const qr = await prisma.qrCode.findFirst({
+    where: {
+      id,
+      deleted_at: null,
+    },
+  });
+
+  if (!qr) {
+    throw new Error('QR code not found');
+  }
+
+  return prisma.qrCode.update({
+    where: {
+      id,
+    },
+    data: {
+      deleted_at: new Date(),
+      is_active: false,
+    },
+  });
+};

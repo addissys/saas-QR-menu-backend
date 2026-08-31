@@ -19,9 +19,12 @@ import categoryRoutes from './routes/category.routes';
 import menuItemRoutes from './routes/menu-item.routes';
 import tableRoutes from './routes/table.routes';
 import qrRoutes from './routes/qr.routes';
+import qrCodesRoutes from './routes/qr-codes.routes';
 import imageRoutes from './routes/image.routes';
 import userRoutes from './routes/user.routes';
+import roleRoutes from './routes/role.routes';
 import userRoleRoutes from './routes/user-role.routes';
+import sessionRoutes from './routes/session.routes';
 import path from 'path';
 import {
   securityHeaders,
@@ -143,6 +146,11 @@ app.use(
 );
 
 app.use(
+  '/api/v1/qr-codes',
+  qrCodesRoutes
+);
+
+app.use(
   '/api/v1/images',
   imageRoutes
 );
@@ -151,6 +159,7 @@ app.use(
   '/api/v1/public',
   publicMenuRoutes
 );
+
 app.use(
   '/api/v1/notifications',
   notificationRoutes
@@ -162,8 +171,12 @@ app.use(
   userRoutes
 );
 
-//--user roles--//
+//--roles & user roles--//
+app.use('/api/v1/roles', roleRoutes);
 app.use('/api/v1/user-roles', userRoleRoutes);
+
+//--user sessions--//
+app.use('/api/v1/sessions', sessionRoutes);
 
 app.use(
   '/api/v1/audit-logs',
@@ -183,6 +196,12 @@ app.get('/health', (req, res) => {
   res.json({
     success: true,
     message: 'QR Menu SaaS Backend API is running',
+  });
+});
+
+app.get("/", (req,res)=>{
+  res.json({
+    message:"Api is running"
   });
 });
 

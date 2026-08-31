@@ -80,7 +80,7 @@ export const getNotification = async (
 ) => {
   try {
     const userId = req.user?.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!userId) {
       return res.status(401).json({
@@ -190,7 +190,7 @@ export const markAsRead = async (
 ) => {
   try {
     const userId = req.user?.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!userId) {
       return res.status(401).json({
@@ -300,7 +300,7 @@ export const remove = async (
 ) => {
   try {
     const userId = req.user?.id;
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!userId) {
       return res.status(401).json({

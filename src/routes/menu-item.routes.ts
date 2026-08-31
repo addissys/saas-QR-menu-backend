@@ -6,6 +6,8 @@ import {
   createMenuItemController,
   updateMenuItemController,
   deleteMenuItemController,
+  updateMenuItemAvailabilityController,
+  updateMenuItemFeaturedController,
 } from '../controllers/menu-item.controller';
 
 const router = Router();
@@ -275,8 +277,7 @@ router.patch(
  *       500:
  *         description: Failed to update availability
  */
-// NOTE: Implement this endpoint handler in menu-item.controller.ts
-// router.patch('/:id/availability', updateMenuItemAvailabilityController);
+router.patch('/:id/availability', updateMenuItemAvailabilityController);
 
 /**
  * @swagger
@@ -318,8 +319,7 @@ router.patch(
  *       500:
  *         description: Failed to update featured status
  */
-// NOTE: Implement this endpoint handler in menu-item.controller.ts
-// router.patch('/:id/featured', updateMenuItemFeaturedController);
+router.patch('/:id/featured', updateMenuItemFeaturedController);
 
 /**
  * @swagger

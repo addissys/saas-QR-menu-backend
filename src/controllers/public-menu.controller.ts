@@ -5,6 +5,7 @@ import {
   getBranchMenu,
   getTableMenu,
   searchPublicMenu,
+  getPublicMenuItem,
 } from '../services/public-menu.service';
 
 /**
@@ -42,7 +43,7 @@ export const getBranchMenuController = async (
   res: Response
 ) => {
   try {
-    const { branchId } = req.params;
+    const branchId = req.params.branchId as string;
 
     if (!branchId) {
       return res.status(400).json({
@@ -85,16 +86,17 @@ export const getTableMenuController = async (
   res: Response
 ) => {
   try {
-    const { branchId, tableId } = req.params;
+    const tableId = (req.params.tableId || req.params.id) as string;
+    const branchId = req.params.branchId as string | undefined;
 
-    if (!branchId || !tableId) {
+    if (!tableId) {
       return res.status(400).json({
         success: false,
-        message: 'Branch ID and Table ID are required',
+        message: 'Table ID is required',
       });
     }
 
-    const menu = await getTableMenu(branchId, tableId);
+    const menu = await getTableMenu(tableId, branchId);
 
     return res.status(200).json({
       success: true,
@@ -170,6 +172,49 @@ export const searchPublicMenuController = async (
     return res.status(500).json({
       success: false,
       message: 'Failed to search public menu',
+    });
+  }
+};
+
+/**
+ * GET /public/branches/:branchId/menu-items/:menuItemId
+ */
+export const getPublicMenuItemController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const branchId = req.params.branchId as string;
+    const menuItemId = req.params.menuItemId as string;
+
+    if (!branchId || !menuItemId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Branch ID and Menu Item ID are required',
+      });
+    }
+
+    const menuItem = await getPublicMenuItem(branchId, menuItemId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Public menu item retrieved successfully',
+      data: {
+        menuItem,
+      },
+    });
+  } catch (error: any) {
+    console.error('Get public menu item error:', error);
+    if (error.message === 'Menu item not found or unavailable') {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve public menu item',
     });
   }
 };

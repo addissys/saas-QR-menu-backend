@@ -6,6 +6,7 @@ interface GetBranchesParams {
   tenant_id?: string;
   search?: string;
   status?: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE';
+  branch_ids?: string[];
 }
 
 export const getAllBranches = async ({
@@ -14,6 +15,7 @@ export const getAllBranches = async ({
   tenant_id,
   search,
   status,
+  branch_ids,
 }: GetBranchesParams) => {
   const skip = (page - 1) * limit;
 
@@ -23,6 +25,10 @@ export const getAllBranches = async ({
 
   if (tenant_id) {
     where.tenant_id = tenant_id;
+  }
+
+  if (branch_ids && branch_ids.length > 0) {
+    where.id = { in: branch_ids };
   }
 
   if (status) {

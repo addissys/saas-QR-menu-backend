@@ -13,7 +13,7 @@ export const getPublicBranches = async () => {
         is_active: true,
         deleted_at: null,
         status: {
-          in: ['ACTIVE', 'TRIAL'],
+          in: ['ACTIVE', 'TRIAL', 'PENDING'],
         },
       },
     },
@@ -56,7 +56,7 @@ export const getBranchMenu = async (branchId: string) => {
         is_active: true,
         deleted_at: null,
         status: {
-          in: ['ACTIVE', 'TRIAL'],
+          in: ['ACTIVE', 'TRIAL', 'PENDING'],
         },
       },
     },
@@ -88,7 +88,6 @@ export const getBranchMenu = async (branchId: string) => {
           sort_order: true,
           menu_items: {
             where: {
-              is_active: true,
               deleted_at: null,
               is_available: true,
             },
@@ -132,13 +131,13 @@ export const getBranchMenu = async (branchId: string) => {
  * This endpoint is used when a customer scans a table QR code.
  */
 export const getTableMenu = async (
-  branchId: string,
-  tableId: string
+  tableId: string,
+  branchId?: string
 ) => {
   const table = await prisma.table.findFirst({
     where: {
       id: tableId,
-      branch_id: branchId,
+      ...(branchId && { branch_id: branchId }),
       is_active: true,
       deleted_at: null,
       branch: {
@@ -149,7 +148,7 @@ export const getTableMenu = async (
           is_active: true,
           deleted_at: null,
           status: {
-            in: ['ACTIVE', 'TRIAL'],
+            in: ['ACTIVE', 'TRIAL', 'PENDING'],
           },
         },
       },
@@ -185,7 +184,6 @@ export const getTableMenu = async (
               sort_order: true,
               menu_items: {
                 where: {
-                  is_active: true,
                   deleted_at: null,
                   is_available: true,
                 },
@@ -246,7 +244,7 @@ export const searchPublicMenu = async (
         is_active: true,
         deleted_at: null,
         status: {
-          in: ['ACTIVE', 'TRIAL'] as any,
+          in: ['ACTIVE', 'TRIAL', 'PENDING'] as any,
         },
       },
     },
@@ -322,3 +320,71 @@ export const searchPublicMenu = async (
     },
   };
 };
+
+/**
+ * Get details of a single public menu item
+ */
+export const getPublicMenuItem = async (
+  branchId: string,
+  menuItemId: string
+) => {
+  const menuItem = await prisma.menuItem.findFirst({
+    where: {
+      id: menuItemId,
+      branch_id: branchId,
+      deleted_at: null,
+      is_available: true,
+      branch: {
+        is_active: true,
+        deleted_at: null,
+        status: 'ACTIVE',
+        tenant: {
+          is_active: true,
+          deleted_at: null,
+          status: {
+            in: ['ACTIVE', 'TRIAL', 'PENDING'],
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      description: true,
+      price: true,
+      image_url: true,
+      preparation_time: true,
+      is_available: true,
+      is_featured: true,
+      category: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+        },
+      },
+      branch: {
+        select: {
+          id: true,
+          branch_name: true,
+          city: true,
+          tenant: {
+            select: {
+              id: true,
+              business_name: true,
+              business_slug: true,
+              logo_url: true,
+              brand_color: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!menuItem) {
+    throw new Error('Menu item not found or unavailable');
+  }
+
+  return menuItem;
+};

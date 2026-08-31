@@ -20,6 +20,9 @@ export const listAuditLogs = async (
   res: Response
 ) => {
   try {
+    const authReq = req as any;
+    const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
+
     const queryResult =
       auditLogQuerySchema.safeParse(req.query);
 
@@ -31,8 +34,13 @@ export const listAuditLogs = async (
       });
     }
 
+    const queryData = { ...queryResult.data };
+    if (!isSuperAdmin && authReq.user?.tenantId) {
+      queryData.tenant_id = authReq.user.tenantId;
+    }
+
     const result = await getAuditLogs(
-      queryResult.data
+      queryData
     );
 
     return res.status(200).json({
@@ -58,7 +66,7 @@ export const getAuditLog = async (
   res: Response
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!id) {
       return res.status(400).json({
@@ -151,7 +159,7 @@ export const deleteAuditLog = async (
   res: Response
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     if (!id) {
       return res.status(400).json({

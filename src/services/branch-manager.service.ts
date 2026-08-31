@@ -6,7 +6,8 @@ import prisma from '../config/prisma';
 export const getAllBranchManagers = async (
   page = 1,
   limit = 10,
-  search?: string
+  search?: string,
+  tenantId?: string
 ) => {
   const skip = (page - 1) * limit;
 
@@ -21,6 +22,25 @@ export const getAllBranchManagers = async (
       deleted_at: null,
     },
   };
+
+  if (tenantId) {
+    where.OR = [
+      {
+        branch: {
+          tenant_id: tenantId,
+          deleted_at: null,
+        },
+      },
+      {
+        managed_branches: {
+          some: {
+            tenant_id: tenantId,
+            deleted_at: null,
+          },
+        },
+      },
+    ];
+  }
 
   if (search) {
     where.user = {

@@ -25,6 +25,9 @@ export const listExecutives = async (
   res: Response
 ) => {
   try {
+    const authReq = req as any;
+    const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
+
     const page = Math.max(
       Number(req.query.page) || 1,
       1
@@ -43,11 +46,21 @@ export const listExecutives = async (
         ? req.query.search.trim()
         : undefined;
 
+    let tenantId =
+      typeof req.query.tenant_id === 'string'
+        ? req.query.tenant_id
+        : undefined;
+
+    if (!isSuperAdmin && authReq.user?.tenantId) {
+      tenantId = authReq.user.tenantId;
+    }
+
     const result =
       await getAllExecutives(
         page,
         limit,
-        search
+        search,
+        tenantId
       );
 
     return res.status(200).json({

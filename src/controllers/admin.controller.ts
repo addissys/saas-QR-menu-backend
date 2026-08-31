@@ -63,7 +63,10 @@ export const getTenant = async (
   res: Response
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Invalid tenant ID' });
+    }
 
     const tenant = await getTenantById(id);
 
@@ -142,7 +145,10 @@ export const updateTenantController = async (
   res: Response
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Invalid tenant ID' });
+    }
 
     const validation = updateTenantSchema.safeParse(
       req.body
@@ -187,7 +193,10 @@ export const deleteTenant = async (
   res: Response
 ) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Invalid tenant ID' });
+    }
 
     await softDeleteTenant(id);
 

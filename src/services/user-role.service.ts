@@ -198,3 +198,124 @@ export const deleteRole = async (id: string) => {
     },
   });
 };
+
+/**
+ * List user role assignments
+ */
+export const getUserRoleAssignments = async () => {
+  const users = await prisma.user.findMany({
+    where: {
+      deleted_at: null,
+    },
+    select: {
+      id: true,
+      full_name: true,
+      email: true,
+      is_active: true,
+      role: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+        },
+      },
+      created_at: true,
+      updated_at: true,
+    },
+    orderBy: {
+      created_at: 'desc',
+    },
+  });
+
+  return users;
+};
+
+/**
+ * Assign role to user
+ */
+export const assignRoleToUser = async (data: { user_id: string; role_id: string }) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      id: data.user_id,
+      deleted_at: null,
+    },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  const role = await prisma.role.findFirst({
+    where: {
+      id: data.role_id,
+      deleted_at: null,
+    },
+  });
+
+  if (!role) {
+    throw new Error('Role not found');
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: {
+      id: data.user_id,
+    },
+    data: {
+      role_id: data.role_id,
+    },
+    select: {
+      id: true,
+      full_name: true,
+      email: true,
+      role: {
+        select: {
+          id: true,
+          name: true,
+          description: true,
+        },
+      },
+      updated_at: true,
+    },
+  });
+
+  return updatedUser;
+};
+
+/**
+ * Update role assignment for a user
+ */
+export const updateUserRoleAssignment = async (userId: string, roleId: string) => {
+  return assignRoleToUser({ user_id: userId, role_id: roleId });
+};
+
+/**
+ * Revoke role assignment from user
+ */
+export const revokeUserRoleAssignment = async (userId: string) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      id: userId,
+      deleted_at: null,
+    },
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Set user as inactive or update status if needed
+  return prisma.user.update({
+    where: {
+      id: userId,
+    },
+    data: {
+      is_active: false,
+    },
+    select: {
+      id: true,
+      full_name: true,
+      email: true,
+      is_active: true,
+    },
+  });
+};

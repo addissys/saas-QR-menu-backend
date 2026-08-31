@@ -27,6 +27,27 @@ import {
 
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
+const isDatabaseUnavailableError = (error: unknown) => {
+  const err = error as {
+    name?: string;
+    code?: string;
+    message?: string;
+  };
+
+  return (
+    err.name === 'PrismaClientInitializationError' ||
+    err.code === 'P1001' ||
+    Boolean(err.message?.includes("Can't reach database server"))
+  );
+};
+
+const databaseUnavailableResponse = (res: Response) =>
+  res.status(503).json({
+    success: false,
+    message:
+      'Database is unavailable. Check DATABASE_URL and make sure the Postgres server accepts connections.',
+  });
+
 /**
  * Register
  */
@@ -62,6 +83,10 @@ export const register = async (
       'Register error:',
       error
     );
+
+    if (isDatabaseUnavailableError(error)) {
+      return databaseUnavailableResponse(res);
+    }
 
     if (
       error.message.includes(
@@ -124,6 +149,10 @@ export const login = async (
       'Login error:',
       error
     );
+
+    if (isDatabaseUnavailableError(error)) {
+      return databaseUnavailableResponse(res);
+    }
 
     if (
       error.message ===
@@ -218,6 +247,10 @@ export const refreshToken = async (
       'Refresh token error:',
       error
     );
+
+    if (isDatabaseUnavailableError(error)) {
+      return databaseUnavailableResponse(res);
+    }
 
     return res.status(401).json({
       success: false,

@@ -2,7 +2,8 @@ import prisma from '../config/prisma';
 
 export const getAllCategories = async (
   branchId?: string,
-  search?: string
+  search?: string,
+  tenantId?: string
 ) => {
   const where: any = {
     deleted_at: null,
@@ -10,6 +11,13 @@ export const getAllCategories = async (
 
   if (branchId) {
     where.branch_id = branchId;
+  }
+
+  if (tenantId) {
+    where.branch = {
+      tenant_id: tenantId,
+      deleted_at: null,
+    };
   }
 
   if (search) {
@@ -37,6 +45,7 @@ export const getAllCategories = async (
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
 
@@ -64,6 +73,7 @@ export const getCategoryById = async (
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
 
@@ -145,6 +155,7 @@ export const createCategory = async (data: {
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
     },
@@ -210,6 +221,7 @@ export const updateCategory = async (
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
     },

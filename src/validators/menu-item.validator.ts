@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const createMenuItemSchema = z.object({
-  branch_id: z.string().uuid('Invalid branch ID'),
+  branch_id: z.string().uuid('Invalid branch ID').optional(),
 
   category_id: z.string().uuid('Invalid category ID'),
 
@@ -18,11 +18,12 @@ export const createMenuItemSchema = z.object({
 
   price: z
     .number()
-    .positive('Price must be greater than 0'),
+    .min(0, 'Price must be non-negative'),
 
   image_url: z
     .string()
     .url('Invalid image URL')
+    .or(z.literal(''))
     .optional()
     .nullable(),
 
@@ -63,12 +64,13 @@ export const updateMenuItemSchema = z.object({
 
   price: z
     .number()
-    .positive()
+    .min(0)
     .optional(),
 
   image_url: z
     .string()
     .url('Invalid image URL')
+    .or(z.literal(''))
     .nullable()
     .optional(),
 

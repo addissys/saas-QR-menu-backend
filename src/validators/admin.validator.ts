@@ -95,4 +95,10 @@ export const updateTenantSchema = z.object({
   city: z.string().max(100).optional(),
 
   country: z.string().max(100).optional(),
+
+  status: z
+    .enum(['PENDING', 'TRIAL', 'ACTIVE', 'SUSPENDED', 'INACTIVE'])
+    .optional(),
+
+  is_active: z.boolean().optional(),
 });

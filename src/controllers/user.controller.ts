@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 import {
   getAllUsers,
@@ -17,14 +18,19 @@ import {
 
 /**
  * GET /users
- * Get all users
+ * Get all users scoped to the authenticated user's tenant
  */
 export const getUsers = async (
   req: Request,
   res: Response
 ) => {
   try {
-    const users = await getAllUsers();
+    const authReq = req as AuthenticatedRequest;
+    const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
+    // Only pass tenantId filter for non-superadmins
+    const tenantId = isSuperAdmin ? undefined : (authReq.user?.tenantId || undefined);
+
+    const users = await getAllUsers(tenantId);
 
     return res.status(200).json({
       success: true,

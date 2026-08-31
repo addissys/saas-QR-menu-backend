@@ -5,6 +5,7 @@ import {
   getBranchMenuController,
   getTableMenuController,
   searchPublicMenuController,
+  getPublicMenuItemController,
 } from '../controllers/public-menu.controller';
 
 const router = Router();
@@ -98,6 +99,50 @@ router.get(
 router.get(
   '/branches/:branchId/tables/:tableId/menu',
   getTableMenuController
+);
+
+router.get(
+  '/tables/:tableId/menu',
+  getTableMenuController
+);
+
+router.get(
+  '/tables/:id',
+  getTableMenuController
+);
+
+/**
+ * @swagger
+ * /api/v1/public/branches/{branchId}/menu-items/{menuItemId}:
+ *   get:
+ *     summary: Get details of a single public menu item
+ *     tags: [Public Menu]
+ *     parameters:
+ *       - in: path
+ *         name: branchId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Branch UUID
+ *       - in: path
+ *         name: menuItemId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Menu Item UUID
+ *     responses:
+ *       200:
+ *         description: Public menu item retrieved successfully
+ *       404:
+ *         description: Menu item not found or unavailable
+ *       500:
+ *         description: Failed to fetch menu item
+ */
+router.get(
+  '/branches/:branchId/menu-items/:menuItemId',
+  getPublicMenuItemController
 );
 
 /**

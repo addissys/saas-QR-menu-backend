@@ -3,7 +3,8 @@ import prisma from '../config/prisma';
 export const getAllMenuItems = async (
   branchId?: string,
   categoryId?: string,
-  search?: string
+  search?: string,
+  tenantId?: string
 ) => {
   const where: any = {
     deleted_at: null,
@@ -15,6 +16,13 @@ export const getAllMenuItems = async (
 
   if (categoryId) {
     where.category_id = categoryId;
+  }
+
+  if (tenantId) {
+    where.branch = {
+      tenant_id: tenantId,
+      deleted_at: null,
+    };
   }
 
   if (search) {
@@ -47,6 +55,7 @@ export const getAllMenuItems = async (
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
 
@@ -75,6 +84,7 @@ export const getMenuItemById = async (
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
 
@@ -91,7 +101,7 @@ export const getMenuItemById = async (
 };
 
 export const createMenuItem = async (data: {
-  branch_id: string;
+  branch_id?: string;
   category_id: string;
   name: string;
   description?: string;
@@ -101,6 +111,20 @@ export const createMenuItem = async (data: {
   is_available?: boolean;
   is_featured?: boolean;
 }) => {
+  if (!data.branch_id && data.category_id) {
+    const targetCategory = await prisma.category.findFirst({
+      where: { id: data.category_id, deleted_at: null },
+      select: { branch_id: true },
+    });
+    if (targetCategory) {
+      data.branch_id = targetCategory.branch_id;
+    }
+  }
+
+  if (!data.branch_id) {
+    throw new Error('Branch ID is required to create a menu item');
+  }
+
   const branch = await prisma.branch.findFirst({
     where: {
       id: data.branch_id,
@@ -172,6 +196,7 @@ export const createMenuItem = async (data: {
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
 
@@ -270,6 +295,7 @@ export const updateMenuItem = async (
           id: true,
           branch_name: true,
           branch_code: true,
+          tenant_id: true,
         },
       },
 

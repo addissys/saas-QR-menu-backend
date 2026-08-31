@@ -2,6 +2,8 @@ import {
   Request,
   Response,
 } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import prisma from '../config/prisma';
 
 import {
   createMenuItemSchema,
@@ -21,6 +23,9 @@ export const listMenuItems = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
+
     const branchId =
       typeof req.query.branch_id === 'string'
         ? req.query.branch_id
@@ -31,6 +36,15 @@ export const listMenuItems = async (
         ? req.query.category_id
         : undefined;
 
+    let tenantId =
+      typeof req.query.tenant_id === 'string'
+        ? req.query.tenant_id
+        : undefined;
+
+    if (!isSuperAdmin && authReq.user?.tenantId) {
+      tenantId = authReq.user.tenantId;
+    }
+
     const search =
       typeof req.query.search === 'string'
         ? req.query.search.trim()
@@ -40,7 +54,8 @@ export const listMenuItems = async (
       await getAllMenuItems(
         branchId,
         categoryId,
-        search
+        search,
+        tenantId
       );
 
     return res.status(200).json({
@@ -118,6 +133,28 @@ export const createMenuItemController =
     res: Response
   ) => {
     try {
+      const authReq = req as AuthenticatedRequest;
+
+      if (!req.body.branch_id && req.body.category_id) {
+        const category = await prisma.category.findUnique({
+          where: { id: req.body.category_id },
+          select: { branch_id: true },
+        });
+        if (category) {
+          req.body.branch_id = category.branch_id;
+        }
+      }
+
+      if (!req.body.branch_id && authReq.user?.tenantId) {
+        const branch = await prisma.branch.findFirst({
+          where: { tenant_id: authReq.user.tenantId, deleted_at: null },
+          select: { id: true },
+        });
+        if (branch) {
+          req.body.branch_id = branch.id;
+        }
+      }
+
       const validation =
         createMenuItemSchema.safeParse(
           req.body
@@ -126,10 +163,8 @@ export const createMenuItemController =
       if (!validation.success) {
         return res.status(400).json({
           success: false,
-          message:
-            'Invalid request data',
-          errors:
-            validation.error.flatten(),
+          message: 'Invalid request data',
+          errors: validation.error.flatten(),
         });
       }
 
@@ -258,3 +293,83 @@ export const deleteMenuItemController =
       });
     }
   };
+
+export const updateMenuItemAvailabilityController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = req.params.id as string;
+    const { is_available } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid menu item ID',
+      });
+    }
+
+    if (typeof is_available !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'is_available boolean is required',
+      });
+    }
+
+    const menuItem = await updateMenuItem(id, { is_available });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Menu item availability updated successfully',
+      data: {
+        menuItem,
+      },
+    });
+  } catch (error: any) {
+    console.error('Update menu item availability error:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update menu item availability',
+    });
+  }
+};
+
+export const updateMenuItemFeaturedController = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const id = req.params.id as string;
+    const { is_featured } = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid menu item ID',
+      });
+    }
+
+    if (typeof is_featured !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'is_featured boolean is required',
+      });
+    }
+
+    const menuItem = await updateMenuItem(id, { is_featured });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Menu item featured status updated successfully',
+      data: {
+        menuItem,
+      },
+    });
+  } catch (error: any) {
+    console.error('Update menu item featured error:', error);
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to update menu item featured status',
+    });
+  }
+};

@@ -2,6 +2,7 @@ import {
   Request,
   Response,
 } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 import {
   createCategorySchema,
@@ -21,10 +22,22 @@ export const listCategories = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
+
     const branchId =
       typeof req.query.branch_id === 'string'
         ? req.query.branch_id
         : undefined;
+
+    let tenantId =
+      typeof req.query.tenant_id === 'string'
+        ? req.query.tenant_id
+        : undefined;
+
+    if (!isSuperAdmin && authReq.user?.tenantId) {
+      tenantId = authReq.user.tenantId;
+    }
 
     const search =
       typeof req.query.search === 'string'
@@ -34,7 +47,8 @@ export const listCategories = async (
     const categories =
       await getAllCategories(
         branchId,
-        search
+        search,
+        tenantId
       );
 
     return res.status(200).json({

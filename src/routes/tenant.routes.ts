@@ -8,6 +8,8 @@ import {
   removeTenant,
 } from '../controllers/tenant.controller';
 
+import { authenticate } from '../middleware/auth.middleware';
+
 const router = Router();
 
 /**
@@ -54,6 +56,7 @@ const router = Router();
  */
 router.get(
   '/',
+  authenticate,
   listTenants
 );
 
@@ -85,6 +88,7 @@ router.get(
  */
 router.get(
   '/:id',
+  authenticate,
   getTenant
 );
 
@@ -157,6 +161,7 @@ router.get(
  */
 router.post(
   '/',
+  authenticate,
   createTenantController
 );
 
@@ -212,6 +217,8 @@ router.post(
  *         description: Validation failed
  *       401:
  *         description: Authentication required
+ *       403:
+ *         description: Not authorized to update this restaurant
  *       404:
  *         description: Tenant not found
  *       500:
@@ -219,6 +226,7 @@ router.post(
  */
 router.patch(
   '/:id',
+  authenticate,
   updateTenantController
 );
 
@@ -250,6 +258,7 @@ router.patch(
  */
 router.delete(
   '/:id',
+  authenticate,
   removeTenant
 );
 

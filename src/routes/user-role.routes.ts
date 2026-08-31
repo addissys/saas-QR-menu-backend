@@ -1,10 +1,10 @@
 import { Router } from 'express';
 
 import {
-  getRoles,
-  createNewRole,
-  updateExistingRole,
-  removeRole,
+  listUserRoleAssignments,
+  assignUserRoleController,
+  updateUserRoleAssignmentController,
+  revokeUserRoleAssignmentController,
 } from '../controllers/user-role.controller';
 
 import { authenticate } from '../middleware/auth.middleware';
@@ -15,69 +15,32 @@ const router = Router();
  * @swagger
  * tags:
  *   name: User Roles
- *   description: User role and RBAC management
+ *   description: User role assignment management
  */
 
 /**
  * @swagger
  * /api/v1/user-roles:
  *   get:
- *     summary: Get all user roles
- *     description: Retrieve all available system roles.
+ *     summary: List user role assignments
  *     tags: [User Roles]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Roles retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Roles retrieved successfully
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                         format: uuid
- *                       name:
- *                         type: string
- *                         example: CAFE_OWNER
- *                       description:
- *                         type: string
- *                         nullable: true
- *                         example: Restaurant owner role
- *                       created_at:
- *                         type: string
- *                         format: date-time
- *                       updated_at:
- *                         type: string
- *                         format: date-time
+ *         description: User role assignments retrieved successfully
  *       401:
  *         description: Authentication required
  *       500:
- *         description: Failed to retrieve roles
+ *         description: Failed to retrieve user role assignments
  */
-router.get(
-  '/',
-  authenticate,
-  getRoles
-);
+router.get('/', authenticate, listUserRoleAssignments);
 
 /**
  * @swagger
  * /api/v1/user-roles:
  *   post:
- *     summary: Create a user role
+ *     summary: Assign a role to a user
  *     tags: [User Roles]
  *     security:
  *       - bearerAuth: []
@@ -88,38 +51,32 @@ router.get(
  *           schema:
  *             type: object
  *             required:
- *               - name
+ *               - user_id
+ *               - role_id
  *             properties:
- *               name:
+ *               user_id:
  *                 type: string
- *                 maxLength: 50
- *                 example: BRANCH_MANAGER
- *               description:
+ *                 format: uuid
+ *               role_id:
  *                 type: string
- *                 example: Manages daily branch operations
+ *                 format: uuid
  *     responses:
  *       201:
- *         description: Role created successfully
+ *         description: Role assigned to user successfully
  *       400:
  *         description: Validation failed
- *       401:
- *         description: Authentication required
- *       409:
- *         description: Role already exists
+ *       404:
+ *         description: User or role not found
  *       500:
- *         description: Failed to create role
+ *         description: Failed to assign role
  */
-router.post(
-  '/',
-  authenticate,
-  createNewRole
-);
+router.post('/', authenticate, assignUserRoleController);
 
 /**
  * @swagger
  * /api/v1/user-roles/{id}:
  *   patch:
- *     summary: Update a user role
+ *     summary: Update role assignment for a user
  *     tags: [User Roles]
  *     security:
  *       - bearerAuth: []
@@ -130,47 +87,34 @@ router.post(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: Role ID
+ *         description: User ID
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - role_id
  *             properties:
- *               name:
+ *               role_id:
  *                 type: string
- *                 maxLength: 50
- *                 example: SENIOR_MANAGER
- *               description:
- *                 type: string
- *                 example: Updated role description
+ *                 format: uuid
  *     responses:
  *       200:
- *         description: Role updated successfully
- *       400:
- *         description: Validation failed or invalid role ID
- *       401:
- *         description: Authentication required
+ *         description: User role assignment updated successfully
  *       404:
- *         description: Role not found
- *       409:
- *         description: Role already exists
+ *         description: User or role not found
  *       500:
- *         description: Failed to update role
+ *         description: Failed to update role assignment
  */
-router.patch(
-  '/:id',
-  authenticate,
-  updateExistingRole
-);
+router.patch('/:id', authenticate, updateUserRoleAssignmentController);
 
 /**
  * @swagger
  * /api/v1/user-roles/{id}:
  *   delete:
- *     summary: Delete a user role
- *     description: Delete a role when it is not assigned to any active user. System roles cannot be deleted.
+ *     summary: Revoke role assignment from a user (Soft Delete)
  *     tags: [User Roles]
  *     security:
  *       - bearerAuth: []
@@ -181,25 +125,15 @@ router.patch(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: Role ID
+ *         description: User ID
  *     responses:
  *       200:
- *         description: Role deleted successfully
- *       400:
- *         description: Invalid role ID
- *       401:
- *         description: Authentication required
+ *         description: User role assignment revoked successfully
  *       404:
- *         description: Role not found
- *       409:
- *         description: Role is assigned to users and cannot be deleted
+ *         description: User not found
  *       500:
- *         description: Failed to delete role
+ *         description: Failed to revoke role assignment
  */
-router.delete(
-  '/:id',
-  authenticate,
-  removeRole
-);
+router.delete('/:id', authenticate, revokeUserRoleAssignmentController);
 
 export default router;

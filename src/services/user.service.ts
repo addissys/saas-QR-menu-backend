@@ -2,12 +2,42 @@ import prisma from '../config/prisma';
 import { hashPassword } from '../utils/password';
 
 /**
- * Get all users
+ * Get all users (optionally scoped to a tenant's staff)
  */
-export const getAllUsers = async () => {
+export const getAllUsers = async (tenantId?: string) => {
+  // When tenantId is provided, filter to only users who are staff/owners of that tenant
+  const staffFilter = tenantId
+    ? {
+        some: {
+          deleted_at: null,
+          branch: {
+            tenant_id: tenantId,
+          },
+        },
+      }
+    : undefined;
+
+  // Also include the tenant owner themselves
+  const ownerFilter = tenantId
+    ? {
+        some: {
+          id: tenantId,
+          deleted_at: null,
+        },
+      }
+    : undefined;
+
   return prisma.user.findMany({
     where: {
       deleted_at: null,
+      ...(tenantId && {
+        OR: [
+          // Users who own this tenant
+          { owned_tenants: ownerFilter },
+          // Users who are staff in a branch of this tenant
+          { staff_profile: staffFilter },
+        ],
+      }),
     },
 
     select: {
@@ -26,6 +56,23 @@ export const getAllUsers = async () => {
           id: true,
           name: true,
           description: true,
+        },
+      },
+
+      staff_profile: {
+        where: {
+          deleted_at: null,
+        },
+        select: {
+          id: true,
+          branch_id: true,
+          branch: {
+            select: {
+              id: true,
+              branch_name: true,
+              tenant_id: true,
+            },
+          },
         },
       },
     },
@@ -64,6 +111,23 @@ export const getUserById = async (id: string) => {
           description: true,
         },
       },
+
+      staff_profile: {
+        where: {
+          deleted_at: null,
+        },
+        select: {
+          id: true,
+          branch_id: true,
+          branch: {
+            select: {
+              id: true,
+              branch_name: true,
+              tenant_id: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -83,6 +147,7 @@ export const createUser = async (data: {
   phone?: string;
   password: string;
   role_id: string;
+  branch_id?: string;
 }) => {
   const email = data.email.toLowerCase().trim();
 
@@ -132,6 +197,17 @@ export const createUser = async (data: {
       phone: data.phone || null,
       password: passwordHash,
       role_id: data.role_id,
+      ...(data.branch_id && {
+        staff_profile: {
+          create: {
+            role_id: data.role_id,
+            branch_id: data.branch_id,
+            hire_date: new Date(),
+            employment_status: 'ACTIVE',
+            is_active: true,
+          },
+        },
+      }),
     },
 
     select: {
@@ -151,6 +227,23 @@ export const createUser = async (data: {
           description: true,
         },
       },
+
+      staff_profile: {
+        where: {
+          deleted_at: null,
+        },
+        select: {
+          id: true,
+          branch_id: true,
+          branch: {
+            select: {
+              id: true,
+              branch_name: true,
+              tenant_id: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -167,6 +260,7 @@ export const updateUser = async (
     email?: string;
     phone?: string;
     role_id?: string;
+    branch_id?: string;
   }
 ) => {
   const existingUser = await prisma.user.findFirst({
@@ -232,6 +326,34 @@ export const updateUser = async (
     }
   }
 
+  // Update or create staff_profile if branch_id is provided
+  if (data.branch_id) {
+    const existingStaff = await prisma.staff.findFirst({
+      where: {
+        user_id: id,
+        deleted_at: null,
+      },
+    });
+
+    if (existingStaff) {
+      await prisma.staff.update({
+        where: { id: existingStaff.id },
+        data: { branch_id: data.branch_id },
+      });
+    } else {
+      await prisma.staff.create({
+        data: {
+          user_id: id,
+          role_id: data.role_id || existingUser.role_id,
+          branch_id: data.branch_id,
+          hire_date: new Date(),
+          employment_status: 'ACTIVE',
+          is_active: true,
+        },
+      });
+    }
+  }
+
   return prisma.user.update({
     where: {
       id,
@@ -272,6 +394,23 @@ export const updateUser = async (
           description: true,
         },
       },
+
+      staff_profile: {
+        where: {
+          deleted_at: null,
+        },
+        select: {
+          id: true,
+          branch_id: true,
+          branch: {
+            select: {
+              id: true,
+              branch_name: true,
+              tenant_id: true,
+            },
+          },
+        },
+      },
     },
   });
 };
@@ -301,14 +440,18 @@ export const deleteUser = async (id: string) => {
       is_active: false,
     },
   });
+
+  return {
+    id,
+  };
 };
 
 /**
- * Update user status
+ * Update user active status
  */
 export const updateUserStatus = async (
   id: string,
-  isActive: boolean
+  is_active: boolean
 ) => {
   const user = await prisma.user.findFirst({
     where: {
@@ -327,7 +470,7 @@ export const updateUserStatus = async (
     },
 
     data: {
-      is_active: isActive,
+      is_active,
     },
 
     select: {
@@ -335,7 +478,6 @@ export const updateUserStatus = async (
       full_name: true,
       email: true,
       is_active: true,
-      updated_at: true,
     },
   });
 };

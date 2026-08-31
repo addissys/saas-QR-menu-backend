@@ -30,8 +30,7 @@
   },
   "homepage": "https://github.com/addissys/saas-QR-menu-backend#readme",
   "dependencies": {
-    "@prisma/adapter-pg": "^7.9.1",
-    "@prisma/client": "^7.9.1",
+    "@prisma/client": "^6.12.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
@@ -69,7 +68,7 @@
     "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^10.0.0",
     "nodemon": "^3.1.14",
-    "prisma": "^7.9.1",
+    "prisma": "^6.12.0",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
   }

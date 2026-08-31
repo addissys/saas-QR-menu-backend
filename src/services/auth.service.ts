@@ -112,6 +112,15 @@ export const loginUser = async (
     },
     include: {
       role: true,
+      owned_tenants: {
+        where: {
+          deleted_at: null,
+        },
+        select: {
+          id: true,
+          business_name: true,
+        },
+      },
     },
   });
 
@@ -174,6 +183,7 @@ export const loginUser = async (
         id: user.role.id,
         name: user.role.name,
       },
+      owned_tenants: user.owned_tenants,
     },
 
     access_token: accessToken,

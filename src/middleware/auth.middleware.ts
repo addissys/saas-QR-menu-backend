@@ -15,6 +15,8 @@ export interface AuthenticatedUser {
   id: string;
   roleId: string;
   roleName: string;
+  tenantId?: string;
+  assignedBranchIds?: string[];
 }
 
 /**
@@ -28,20 +30,6 @@ export interface AuthenticatedRequest
 
 /**
  * Authentication Middleware
- *
- * Security checks:
- *
- * 1. Authorization header exists
- * 2. Bearer token format is valid
- * 3. JWT is valid
- * 4. User exists
- * 5. User is not soft deleted
- * 6. User is active
- * 7. User role exists
- * 8. User role is not soft deleted
- * 9. User session exists
- * 10. Session is not revoked
- * 11. Session is not expired
  */
 export const authenticate = async (
   req: Request,
@@ -53,8 +41,7 @@ export const authenticate = async (
     // 1. Get Authorization Header
     // =====================================================
 
-    const authorization =
-      req.headers.authorization;
+    const authorization = req.headers.authorization;
 
     if (!authorization) {
       return res.status(401).json({
@@ -67,9 +54,7 @@ export const authenticate = async (
     // 2. Check Bearer Token Format
     // =====================================================
 
-    if (
-      !authorization.startsWith('Bearer ')
-    ) {
+    if (!authorization.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
         message: 'Invalid authorization format',
@@ -80,8 +65,7 @@ export const authenticate = async (
     // 3. Extract Access Token
     // =====================================================
 
-    const token =
-      authorization.substring(7).trim();
+    const token = authorization.substring(7).trim();
 
     if (!token) {
       return res.status(401).json({
@@ -97,13 +81,11 @@ export const authenticate = async (
     let payload;
 
     try {
-      payload =
-        verifyAccessToken(token);
+      payload = verifyAccessToken(token);
     } catch (error) {
       return res.status(401).json({
         success: false,
-        message:
-          'Invalid or expired access token',
+        message: 'Invalid or expired access token',
       });
     }
 
@@ -111,22 +93,16 @@ export const authenticate = async (
     // 5. Find User
     // =====================================================
 
-    const user =
-      await prisma.user.findFirst({
-        where: {
-          id: payload.userId,
-
-          // Soft delete check
-          deleted_at: null,
-
-          // Account must be active
-          is_active: true,
-        },
-
-        include: {
-          role: true,
-        },
-      });
+    const user = await prisma.user.findFirst({
+      where: {
+        id: payload.userId,
+        deleted_at: null,
+        is_active: true,
+      },
+      include: {
+        role: true,
+      },
+    });
 
     // =====================================================
     // 6. Check User
@@ -135,8 +111,7 @@ export const authenticate = async (
     if (!user) {
       return res.status(401).json({
         success: false,
-        message:
-          'User account not found or inactive',
+        message: 'User account not found or inactive',
       });
     }
 
@@ -147,8 +122,7 @@ export const authenticate = async (
     if (!user.role) {
       return res.status(403).json({
         success: false,
-        message:
-          'User role is not assigned',
+        message: 'User role is not assigned',
       });
     }
 
@@ -159,8 +133,7 @@ export const authenticate = async (
     if (user.role.deleted_at) {
       return res.status(403).json({
         success: false,
-        message:
-          'User role is inactive',
+        message: 'User role is inactive',
       });
     }
 
@@ -168,22 +141,16 @@ export const authenticate = async (
     // 9. Check User Session
     // =====================================================
 
-    const session =
-      await prisma.userSession.findFirst({
-        where: {
-          user_id: user.id,
-
-          access_token: token,
-
-          // Session must not be revoked
-          revoked_at: null,
-
-          // Session must not be expired
-          expires_at: {
-            gt: new Date(),
-          },
+    const session = await prisma.userSession.findFirst({
+      where: {
+        user_id: user.id,
+        access_token: token,
+        revoked_at: null,
+        expires_at: {
+          gt: new Date(),
         },
-      });
+      },
+    });
 
     // =====================================================
     // 10. Session Not Found
@@ -192,46 +159,120 @@ export const authenticate = async (
     if (!session) {
       return res.status(401).json({
         success: false,
-        message:
-          'Session is invalid, expired, or revoked',
+        message: 'Session is invalid, expired, or revoked',
       });
     }
 
     // =====================================================
-    // 11. Attach User to Request
+    // 11. Resolve Tenant Context & Assigned Branch IDs
     // =====================================================
 
-    const authenticatedRequest =
-      req as AuthenticatedRequest;
+    const ownedTenant = await prisma.tenant.findFirst({
+      where: {
+        owner_id: user.id,
+        deleted_at: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    let tenantId = ownedTenant?.id;
+    let assignedBranchIds: string[] = [];
+
+    const staffRecords = await prisma.staff.findMany({
+      where: {
+        user_id: user.id,
+        deleted_at: null,
+      },
+      select: {
+        branch_id: true,
+        branch: {
+          select: { tenant_id: true },
+        },
+        managed_branches: {
+          where: { deleted_at: null },
+          select: { id: true, tenant_id: true },
+        },
+        executive_branches: {
+          where: { deleted_at: null },
+          select: { branch_id: true, branch: { select: { tenant_id: true } } },
+        },
+      },
+    });
+
+    for (const staff of staffRecords) {
+      if (staff.branch_id) {
+        assignedBranchIds.push(staff.branch_id);
+        if (!tenantId && staff.branch?.tenant_id) {
+          tenantId = staff.branch.tenant_id;
+        }
+      }
+      for (const mb of staff.managed_branches) {
+        assignedBranchIds.push(mb.id);
+        if (!tenantId && mb.tenant_id) {
+          tenantId = mb.tenant_id;
+        }
+      }
+      for (const eb of staff.executive_branches) {
+        assignedBranchIds.push(eb.branch_id);
+        if (!tenantId && eb.branch?.tenant_id) {
+          tenantId = eb.branch.tenant_id;
+        }
+      }
+    }
+
+    assignedBranchIds = Array.from(new Set(assignedBranchIds));
+
+    // =====================================================
+    // 12. Check Tenant Active / Suspended Status
+    // =====================================================
+
+    const isSuperAdmin = user.role.name?.toUpperCase() === 'SUPER_ADMIN';
+
+    if (!isSuperAdmin && tenantId) {
+      const tenantRecord = await prisma.tenant.findFirst({
+        where: {
+          id: tenantId,
+          deleted_at: null,
+        },
+        select: {
+          is_active: true,
+          status: true,
+        },
+      });
+
+      if (tenantRecord && (!tenantRecord.is_active || tenantRecord.status === 'SUSPENDED')) {
+        return res.status(403).json({
+          success: false,
+          message: 'Restaurant organization account is currently suspended. Please contact platform administration.',
+        });
+      }
+    }
+
+    // =====================================================
+    // 13. Attach User to Request
+    // =====================================================
+
+    const authenticatedRequest = req as AuthenticatedRequest;
 
     authenticatedRequest.user = {
       id: user.id,
       roleId: user.role_id,
       roleName: user.role.name,
+      tenantId,
+      assignedBranchIds,
     };
 
-    // =====================================================
-    // 12. Attach Access Token
-    // =====================================================
-
-    authenticatedRequest.accessToken =
-      token;
-
-    // =====================================================
-    // 13. Continue
-    // =====================================================
+    authenticatedRequest.accessToken = token;
 
     next();
   } catch (error) {
-    console.error(
-      'Authentication middleware error:',
-      error
-    );
+    console.error('Authentication middleware error:', error);
 
     return res.status(500).json({
       success: false,
-      message:
-        'Authentication failed',
+      message: 'Authentication failed',
     });
   }
 };

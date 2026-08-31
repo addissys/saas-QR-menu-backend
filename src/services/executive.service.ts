@@ -6,7 +6,8 @@ import prisma from '../config/prisma';
 export const getAllExecutives = async (
   page = 1,
   limit = 10,
-  search?: string
+  search?: string,
+  tenantId?: string
 ) => {
   const skip = (page - 1) * limit;
 
@@ -17,6 +18,18 @@ export const getAllExecutives = async (
       deleted_at: null,
     },
   };
+
+  if (tenantId) {
+    where.executive_branches = {
+      some: {
+        branch: {
+          tenant_id: tenantId,
+          deleted_at: null,
+        },
+        deleted_at: null,
+      },
+    };
+  }
 
   if (search) {
     where.user = {

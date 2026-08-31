@@ -60,5 +60,23 @@ export const sendPasswordResetEmail = async (
     `,
   };
 
-  await transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Password reset email successfully sent to ${toEmail}`);
+  } catch (error) {
+    console.error('Failed to send password reset email via SMTP:', error);
+    console.log('\n==================================================');
+    console.log(`RESET PASSWORD LINK FOR ${toEmail}:`);
+    console.log(resetLink);
+    console.log('==================================================\n');
+    
+    // In development or if credentials are empty, don't bubble up the SMTP error
+    const user = process.env.MAIL_USER?.trim();
+    const pass = process.env.MAIL_PASS?.trim();
+    if (!user || !pass) {
+      console.log('SMTP credentials not configured; resolved successfully via console output.');
+      return;
+    }
+    throw error;
+  }
 };

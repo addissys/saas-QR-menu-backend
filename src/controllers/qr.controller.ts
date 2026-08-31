@@ -1,207 +1,239 @@
-import {
-  Request,
-  Response,
-} from 'express';
+import { Request, Response } from 'express';
 
 import {
   generateTableQr,
   getTableQr,
   regenerateTableQr,
   deleteTableQr,
+  getAllQrCodes,
+  getQrCodeById,
+  downloadQrImage,
+  regenerateQrById,
+  deleteQrById,
 } from '../services/qr.service';
 
-export const generateQrController = async (
-  req: Request,
-  res: Response
-) => {
+export const listQrCodesController = async (req: Request, res: Response) => {
   try {
-    const tableId = req.params.tableId;
+    const branchId = typeof req.query.branch_id === 'string' ? req.query.branch_id : undefined;
+    const qrCodes = await getAllQrCodes(branchId);
 
-    if (typeof tableId !== 'string') {
-      return res.status(400).json({
+    return res.status(200).json({
+      success: true,
+      message: 'QR codes listed successfully',
+      data: qrCodes,
+    });
+  } catch (error: any) {
+    console.error('List QR codes error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve QR codes',
+    });
+  }
+};
+
+export const getQrCodeByIdController = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Invalid QR code ID' });
+    }
+
+    const qr = await getQrCodeById(id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'QR code retrieved successfully',
+      data: qr,
+    });
+  } catch (error: any) {
+    console.error('Get QR code error:', error);
+    if (error.message === 'QR code not found') {
+      return res.status(404).json({
         success: false,
-        message: 'Invalid table ID',
+        message: error.message,
       });
     }
 
-    /*
-     * For now we take the generating user from
-     * the authenticated request.
-     */
-    const authenticatedUser =
-      (req as Request & {
-        user?: { id: string };
-      }).user;
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve QR code',
+    });
+  }
+};
 
-    if (!authenticatedUser?.id) {
+export const generateQrCodeController = async (req: Request, res: Response) => {
+  try {
+    const tableId = (req.body.table_id || req.body.tableId || req.params.tableId) as string;
+    const userId = (req as any).user?.id;
+
+    if (!tableId || typeof tableId !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'table_id is required',
+      });
+    }
+
+    if (!userId) {
       return res.status(401).json({
         success: false,
         message: 'Authentication required',
       });
     }
 
-    const result =
-      await generateTableQr(
-        tableId,
-        authenticatedUser.id
-      );
+    const result = await generateTableQr(tableId, userId);
 
     return res.status(201).json({
       success: true,
-      message:
-        'QR code generated successfully',
+      message: 'QR code generated successfully',
       data: result,
     });
   } catch (error: any) {
-    console.error(
-      'Generate QR error:',
-      error
-    );
-
+    console.error('Generate QR code error:', error);
     return res.status(400).json({
       success: false,
-      message:
-        error.message ||
-        'Failed to generate QR code',
+      message: error.message || 'Failed to generate QR code',
     });
   }
 };
 
-export const getQrController = async (
-  req: Request,
-  res: Response
-) => {
+export const downloadQrImageController = async (req: Request, res: Response) => {
   try {
-    const tableId = req.params.tableId;
-
-    if (typeof tableId !== 'string') {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid table ID',
-      });
+    const id = req.params.id as string;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Invalid QR code ID' });
     }
 
-    const qr =
-      await getTableQr(tableId);
-
-    if (!qr) {
-      return res.status(404).json({
-        success: false,
-        message:
-          'QR code not found',
-      });
-    }
+    const qrImageUrl = await downloadQrImage(id);
 
     return res.status(200).json({
       success: true,
-      message:
-        'QR code retrieved successfully',
+      message: 'QR code image retrieved successfully',
       data: {
-        qr,
+        qr_image_url: qrImageUrl,
       },
     });
-  } catch (error) {
-    console.error(
-      'Get QR error:',
-      error
-    );
+  } catch (error: any) {
+    console.error('Download QR image error:', error);
+    if (error.message === 'QR code not found') {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
 
     return res.status(500).json({
       success: false,
-      message:
-        'Failed to retrieve QR code',
+      message: 'Failed to download QR code image',
     });
   }
 };
 
-export const regenerateQrController =
-  async (
-    req: Request,
-    res: Response
-  ) => {
-    try {
-      const tableId = req.params.tableId;
+export const regenerateQrByIdController = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const userId = (req as any).user?.id;
 
-      if (typeof tableId !== 'string') {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid table ID',
-        });
-      }
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Invalid QR code ID' });
+    }
 
-      const authenticatedUser =
-        (req as Request & {
-          user?: { id: string };
-        }).user;
-
-      if (!authenticatedUser?.id) {
-        return res.status(401).json({
-          success: false,
-          message:
-            'Authentication required',
-        });
-      }
-
-      const result =
-        await regenerateTableQr(
-          tableId,
-          authenticatedUser.id
-        );
-
-      return res.status(201).json({
-        success: true,
-        message:
-          'QR code regenerated successfully',
-        data: result,
-      });
-    } catch (error: any) {
-      console.error(
-        'Regenerate QR error:',
-        error
-      );
-
-      return res.status(400).json({
+    if (!userId) {
+      return res.status(401).json({
         success: false,
-        message:
-          error.message ||
-          'Failed to regenerate QR code',
+        message: 'Authentication required',
       });
     }
-  };
 
-export const deleteQrController =
-  async (
-    req: Request,
-    res: Response
-  ) => {
-    try {
-      const tableId = req.params.tableId;
+    const result = await regenerateQrById(id, userId);
 
-      if (typeof tableId !== 'string') {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid table ID',
-        });
-      }
-
-      await deleteTableQr(tableId);
-
-      return res.status(200).json({
-        success: true,
-        message:
-          'QR code deleted successfully',
-      });
-    } catch (error: any) {
-      console.error(
-        'Delete QR error:',
-        error
-      );
-
+    return res.status(200).json({
+      success: true,
+      message: 'QR code regenerated successfully',
+      data: result,
+    });
+  } catch (error: any) {
+    console.error('Regenerate QR code error:', error);
+    if (error.message === 'QR code not found') {
       return res.status(404).json({
         success: false,
-        message:
-          error.message ||
-          'Failed to delete QR code',
+        message: error.message,
       });
     }
-  };
+
+    return res.status(400).json({
+      success: false,
+      message: error.message || 'Failed to regenerate QR code',
+    });
+  }
+};
+
+export const deleteQrByIdController = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Invalid QR code ID' });
+    }
+
+    await deleteQrById(id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'QR code deleted successfully',
+    });
+  } catch (error: any) {
+    console.error('Delete QR code error:', error);
+    if (error.message === 'QR code not found') {
+      return res.status(404).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to delete QR code',
+    });
+  }
+};
+
+/* Legacy table-based controllers */
+export const generateQrController = async (req: Request, res: Response) => {
+  return generateQrCodeController(req, res);
+};
+
+export const getQrController = async (req: Request, res: Response) => {
+  try {
+    const tableId = req.params.tableId as string;
+    if (!tableId) return res.status(400).json({ success: false, message: 'Invalid table ID' });
+
+    const qr = await getTableQr(tableId);
+    if (!qr) return res.status(404).json({ success: false, message: 'QR code not found' });
+    return res.status(200).json({ success: true, message: 'QR code retrieved successfully', data: { qr } });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to retrieve QR code' });
+  }
+};
+
+export const regenerateQrController = async (req: Request, res: Response) => {
+  try {
+    const tableId = req.params.tableId as string;
+    const userId = (req as any).user?.id;
+    if (!tableId || !userId) return res.status(400).json({ success: false, message: 'Invalid table ID or unauthenticated user' });
+    const result = await regenerateTableQr(tableId, userId);
+    return res.status(200).json({ success: true, message: 'QR code regenerated successfully', data: result });
+  } catch (error: any) {
+    return res.status(400).json({ success: false, message: error.message || 'Failed to regenerate QR code' });
+  }
+};
+
+export const deleteQrController = async (req: Request, res: Response) => {
+  try {
+    const tableId = req.params.tableId as string;
+    if (!tableId) return res.status(400).json({ success: false, message: 'Invalid table ID' });
+
+    await deleteTableQr(tableId);
+    return res.status(200).json({ success: true, message: 'QR code deleted successfully' });
+  } catch (error: any) {
+    return res.status(404).json({ success: false, message: error.message || 'Failed to delete QR code' });
+  }
+};

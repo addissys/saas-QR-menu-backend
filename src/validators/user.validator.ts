@@ -24,6 +24,11 @@ export const createUserSchema = z.object({
   role_id: z
     .string()
     .min(1, 'Role ID is required'),
+
+  branch_id: z
+    .string()
+    .uuid('Invalid branch ID')
+    .optional(),
 });
 
 export const updateUserSchema = z.object({
@@ -47,6 +52,11 @@ export const updateUserSchema = z.object({
   role_id: z
     .string()
     .min(1)
+    .optional(),
+
+  branch_id: z
+    .string()
+    .uuid('Invalid branch ID')
     .optional(),
 });
 

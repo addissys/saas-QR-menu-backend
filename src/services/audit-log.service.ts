@@ -187,7 +187,6 @@ export const softDeleteAuditLog = async (
   const existingLog = await prisma.auditLog.findFirst({
     where: {
       id,
-      deleted_at: null,
     },
   });
 
@@ -195,13 +194,9 @@ export const softDeleteAuditLog = async (
     throw new Error('Audit log not found');
   }
 
-  const auditLog = await prisma.auditLog.update({
+  const auditLog = await prisma.auditLog.delete({
     where: {
       id,
-    },
-
-    data: {
-      deleted_at: new Date(),
     },
   });
 
