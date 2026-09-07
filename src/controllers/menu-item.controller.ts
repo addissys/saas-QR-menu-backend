@@ -4,6 +4,7 @@ import {
 } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import prisma from '../config/prisma';
+import { assertBranchAccess, getScopedBranchIds, findBranchForResource } from '../middleware/branch-scope.middleware';
 
 import {
   createMenuItemSchema,
@@ -55,7 +56,8 @@ export const listMenuItems = async (
         branchId,
         categoryId,
         search,
-        tenantId
+        tenantId,
+        getScopedBranchIds(req)
       );
 
     return res.status(200).json({
@@ -94,6 +96,8 @@ export const getMenuItem = async (
       });
     }
 
+    const resourceBranchId = await findBranchForResource('menuItem', id);
+    if (resourceBranchId) await assertBranchAccess(req, resourceBranchId);
     const menuItem =
       await getMenuItemById(id);
 
@@ -133,6 +137,8 @@ export const createMenuItemController =
     res: Response
   ) => {
     try {
+      const branchId = await findBranchForResource('menuItem', req.params.id as string);
+      if (branchId) await assertBranchAccess(req, branchId);
       const authReq = req as AuthenticatedRequest;
 
       if (!req.body.branch_id && req.body.category_id) {
@@ -202,6 +208,8 @@ export const updateMenuItemController =
     res: Response
   ) => {
     try {
+      const branchId = await findBranchForResource('menuItem', req.params.id as string);
+      if (branchId) await assertBranchAccess(req, branchId);
       const id = req.params.id;
 
       if (typeof id !== 'string') {
@@ -299,6 +307,8 @@ export const updateMenuItemAvailabilityController = async (
   res: Response
 ) => {
   try {
+    const branchId = await findBranchForResource('menuItem', req.params.id as string);
+    if (branchId) await assertBranchAccess(req, branchId);
     const id = req.params.id as string;
     const { is_available } = req.body;
 
@@ -339,6 +349,8 @@ export const updateMenuItemFeaturedController = async (
   res: Response
 ) => {
   try {
+    const branchId = await findBranchForResource('menuItem', req.params.id as string);
+    if (branchId) await assertBranchAccess(req, branchId);
     const id = req.params.id as string;
     const { is_featured } = req.body;
 

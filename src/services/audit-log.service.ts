@@ -1,7 +1,7 @@
 import prisma from '../config/prisma';
 
 interface CreateAuditLogData {
-  user_id: string;
+  user_id?: string;
   tenant_id?: string;
   module: string;
   action: string;
@@ -11,6 +11,15 @@ interface CreateAuditLogData {
   new_values?: unknown;
   ip_address?: string;
   user_agent?: string;
+  user_role?: string;
+  branch_id?: string;
+  method?: string;
+  endpoint?: string;
+  status_code?: number;
+  request_body?: unknown;
+  response_body?: unknown;
+  success?: boolean;
+  error_message?: string;
 }
 
 interface GetAuditLogsOptions {
@@ -20,6 +29,12 @@ interface GetAuditLogsOptions {
   action?: string;
   user_id?: string;
   tenant_id?: string;
+  method?: string;
+  user_role?: string;
+  status_code?: number;
+  success?: boolean;
+  endpoint?: string;
+  search?: string;
 }
 
 /**
@@ -40,6 +55,15 @@ export const createAuditLog = async (
       new_values: data.new_values as any,
       ip_address: data.ip_address,
       user_agent: data.user_agent,
+      user_role: data.user_role,
+      branch_id: data.branch_id,
+      method: data.method,
+      endpoint: data.endpoint,
+      status_code: data.status_code,
+      request_body: data.request_body as any,
+      response_body: data.response_body as any,
+      success: data.success,
+      error_message: data.error_message,
     },
   });
 
@@ -93,6 +117,18 @@ export const getAuditLogs = async (
           tenant_id: options.tenant_id,
         }
       : {}),
+
+    ...(options.method ? { method: { equals: options.method, mode: 'insensitive' as const } } : {}),
+    ...(options.user_role ? { user_role: { equals: options.user_role, mode: 'insensitive' as const } } : {}),
+    ...(options.status_code ? { status_code: options.status_code } : {}),
+    ...(options.success !== undefined ? { success: options.success } : {}),
+    ...(options.endpoint ? { endpoint: { contains: options.endpoint, mode: 'insensitive' as const } } : {}),
+    ...(options.search ? { OR: [
+      { endpoint: { contains: options.search, mode: 'insensitive' as const } },
+      { action: { contains: options.search, mode: 'insensitive' as const } },
+      { error_message: { contains: options.search, mode: 'insensitive' as const } },
+      { user: { full_name: { contains: options.search, mode: 'insensitive' as const } } },
+    ] } : {}),
   };
 
   const [logs, total] = await Promise.all([

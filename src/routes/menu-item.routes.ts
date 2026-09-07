@@ -9,8 +9,10 @@ import {
   updateMenuItemAvailabilityController,
   updateMenuItemFeaturedController,
 } from '../controllers/menu-item.controller';
+import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
+router.use(authenticate);
 
 /**
  * @swagger

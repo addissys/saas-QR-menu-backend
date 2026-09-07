@@ -3,7 +3,8 @@ import prisma from '../config/prisma';
 export const getAllCategories = async (
   branchId?: string,
   search?: string,
-  tenantId?: string
+  tenantId?: string,
+  branchIds?: string[]
 ) => {
   const where: any = {
     deleted_at: null,
@@ -12,6 +13,7 @@ export const getAllCategories = async (
   if (branchId) {
     where.branch_id = branchId;
   }
+  if (branchIds) where.branch_id = { in: branchIds };
 
   if (tenantId) {
     where.branch = {

@@ -201,6 +201,13 @@ export const authenticate = async (
       },
     });
 
+    const managerAssignments = user.role.name?.toUpperCase() === 'BRANCH_MANAGER'
+      ? await prisma.branch.findMany({
+          where: { manager: { user_id: user.id }, deleted_at: null },
+          select: { id: true, tenant_id: true },
+        })
+      : [];
+
     for (const staff of staffRecords) {
       if (staff.branch_id) {
         assignedBranchIds.push(staff.branch_id);
@@ -220,6 +227,11 @@ export const authenticate = async (
           tenantId = eb.branch.tenant_id;
         }
       }
+    }
+
+    for (const branch of managerAssignments) {
+      assignedBranchIds.push(branch.id);
+      if (!tenantId) tenantId = branch.tenant_id;
     }
 
     assignedBranchIds = Array.from(new Set(assignedBranchIds));

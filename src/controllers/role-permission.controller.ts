@@ -16,6 +16,16 @@ import {
 } from '../services/role-permission.service';
 
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import prisma from '../config/prisma';
+
+export const listPermissions = async (_req: AuthenticatedRequest, res: Response) => {
+  const permissions = await prisma.permission.findMany({
+    where: { deleted_at: null },
+    select: { id: true, permission: true, module: true, action: true, description: true },
+    orderBy: [{ module: 'asc' }, { permission: 'asc' }],
+  });
+  return res.status(200).json({ success: true, data: permissions });
+};
 
 /**
  * GET /roles/:roleId/permissions

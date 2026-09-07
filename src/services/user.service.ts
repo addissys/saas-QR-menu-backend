@@ -4,21 +4,19 @@ import { hashPassword } from '../utils/password';
 /**
  * Get all users (optionally scoped to a tenant's staff)
  */
-export const getAllUsers = async (tenantId?: string) => {
+export const getAllUsers = async (tenantId?: string, branchIds?: string[]) => {
   // When tenantId is provided, filter to only users who are staff/owners of that tenant
-  const staffFilter = tenantId
+  const staffFilter = tenantId || branchIds
     ? {
         some: {
           deleted_at: null,
-          branch: {
-            tenant_id: tenantId,
-          },
+          ...(branchIds ? { branch_id: { in: branchIds } } : { branch: { tenant_id: tenantId } }),
         },
       }
     : undefined;
 
   // Also include the tenant owner themselves
-  const ownerFilter = tenantId
+  const ownerFilter = tenantId && !branchIds
     ? {
         some: {
           id: tenantId,
@@ -30,7 +28,7 @@ export const getAllUsers = async (tenantId?: string) => {
   return prisma.user.findMany({
     where: {
       deleted_at: null,
-      ...(tenantId && {
+      ...((tenantId || branchIds) && {
         OR: [
           // Users who own this tenant
           { owned_tenants: ownerFilter },
@@ -72,6 +70,14 @@ export const getAllUsers = async (tenantId?: string) => {
               branch_name: true,
               tenant_id: true,
             },
+          },
+        },
+      },
+      permissions: {
+        where: { deleted_at: null },
+        select: {
+          permission: {
+            select: { id: true, permission: true, module: true, action: true },
           },
         },
       },
@@ -148,6 +154,7 @@ export const createUser = async (data: {
   password: string;
   role_id: string;
   branch_id?: string;
+  branch_ids?: string[];
 }) => {
   const email = data.email.toLowerCase().trim();
 
@@ -190,6 +197,8 @@ export const createUser = async (data: {
   // Hash password
   const passwordHash = await hashPassword(data.password);
 
+  const isExecutive = role.name.toUpperCase() === 'EXECUTIVE';
+  const branchIds = [...new Set(data.branch_ids ?? (data.branch_id ? [data.branch_id] : []))];
   const user = await prisma.user.create({
     data: {
       full_name: data.full_name.trim(),
@@ -197,7 +206,7 @@ export const createUser = async (data: {
       phone: data.phone || null,
       password: passwordHash,
       role_id: data.role_id,
-      ...(data.branch_id && {
+      ...(!isExecutive && data.branch_id && {
         staff_profile: {
           create: {
             role_id: data.role_id,
@@ -208,6 +217,17 @@ export const createUser = async (data: {
           },
         },
       }),
+      ...(isExecutive && branchIds.length > 0 ? {
+        staff_profile: {
+          create: {
+            role_id: data.role_id,
+            hire_date: new Date(),
+            employment_status: 'ACTIVE',
+            is_active: true,
+            executive_branches: { create: branchIds.map((branch_id) => ({ branch_id })) },
+          },
+        },
+      } : {}),
     },
 
     select: {
@@ -261,6 +281,7 @@ export const updateUser = async (
     phone?: string;
     role_id?: string;
     branch_id?: string;
+    branch_ids?: string[];
   }
 ) => {
   const existingUser = await prisma.user.findFirst({
@@ -351,6 +372,17 @@ export const updateUser = async (
           is_active: true,
         },
       });
+    }
+  }
+
+  if (data.branch_ids && data.role_id) {
+    const targetRole = await prisma.role.findUnique({ where: { id: data.role_id }, select: { name: true } });
+    if (targetRole?.name.toUpperCase() === 'EXECUTIVE') {
+      const staff = await prisma.staff.findFirst({ where: { user_id: id, deleted_at: null } });
+      if (staff) {
+        await prisma.executiveBranch.updateMany({ where: { executive_id: staff.id, deleted_at: null }, data: { deleted_at: new Date() } });
+        await prisma.executiveBranch.createMany({ data: [...new Set(data.branch_ids)].map((branch_id) => ({ executive_id: staff.id, branch_id })), skipDuplicates: true });
+      }
     }
   }
 
@@ -480,4 +512,37 @@ export const updateUserStatus = async (
       is_active: true,
     },
   });
+};
+
+export const getUserPermissions = async (userId: string) => {
+  return prisma.userPermission.findMany({
+    where: { user_id: userId, deleted_at: null, permission: { deleted_at: null } },
+    select: { permission: { select: { id: true, permission: true, module: true, action: true, description: true } } },
+  });
+};
+
+export const assignUserPermissions = async (userId: string, permissionIds: string[]) => {
+  const user = await prisma.user.findFirst({ where: { id: userId, deleted_at: null } });
+  if (!user) throw new Error('User not found');
+  const permissions = await prisma.permission.findMany({ where: { id: { in: [...new Set(permissionIds)] }, deleted_at: null } });
+  if (permissions.length !== new Set(permissionIds).size) throw new Error('One or more permissions were not found');
+  await prisma.userPermission.updateMany({
+    where: { user_id: userId, deleted_at: null, permission_id: { notIn: [...new Set(permissionIds)] } },
+    data: { deleted_at: new Date() },
+  });
+  for (const permission of permissions) {
+    await prisma.userPermission.upsert({
+      where: { user_id_permission_id: { user_id: userId, permission_id: permission.id } },
+      create: { user_id: userId, permission_id: permission.id },
+      update: { deleted_at: null },
+    });
+  }
+  return getUserPermissions(userId);
+};
+
+export const revokeUserPermission = async (userId: string, permissionId: string) => {
+  const assignment = await prisma.userPermission.findUnique({ where: { user_id_permission_id: { user_id: userId, permission_id: permissionId } } });
+  if (!assignment || assignment.deleted_at) throw new Error('Permission is not assigned to this user');
+  await prisma.userPermission.update({ where: { user_id_permission_id: { user_id: userId, permission_id: permissionId } }, data: { deleted_at: new Date() } });
+  return getUserPermissions(userId);
 };

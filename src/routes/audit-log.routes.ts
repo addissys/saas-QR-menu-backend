@@ -6,6 +6,8 @@ import {
   createAuditLogController,
   deleteAuditLog,
 } from '../controllers/audit-log.controller';
+import { authenticate } from '../middleware/auth.middleware';
+import { requireRoles } from '../middleware/role.middleware';
 
 const router = Router();
 
@@ -53,6 +55,8 @@ const router = Router();
  */
 router.get(
   '/',
+  authenticate,
+  requireRoles('SUPER_ADMIN'),
   listAuditLogs
 );
 
@@ -81,6 +85,8 @@ router.get(
  */
 router.get(
   '/:id',
+  authenticate,
+  requireRoles('SUPER_ADMIN'),
   getAuditLog
 );
 
@@ -139,6 +145,8 @@ router.get(
  */
 router.post(
   '/',
+  authenticate,
+  requireRoles('SUPER_ADMIN'),
   createAuditLogController
 );
 
@@ -167,6 +175,8 @@ router.post(
  */
 router.delete(
   '/:id',
+  authenticate,
+  requireRoles('SUPER_ADMIN'),
   deleteAuditLog
 );
 

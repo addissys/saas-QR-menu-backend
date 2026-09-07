@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const assignPermissionsSchema = z.object({
   permission_ids: z
     .array(z.string().uuid())
-    .min(1, 'At least one permission ID is required'),
+    .default([]),
 });
 
 export const roleIdSchema = z.object({

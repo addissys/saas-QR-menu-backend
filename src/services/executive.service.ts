@@ -488,6 +488,28 @@ export const assignExecutiveBranches =
       );
     }
 
+    const occupiedBranches = await prisma.executiveBranch.findMany({
+      where: {
+        branch_id: { in: branchIds },
+        executive_id: { not: executiveId },
+        deleted_at: null,
+      },
+      select: { branch_id: true },
+    });
+    if (occupiedBranches.length > 0) {
+      throw new Error('One or more branches are already assigned to another executive');
+    }
+
+    const previouslyRemoved = await prisma.executiveBranch.findMany({
+      where: { executive_id: executiveId, branch_id: { in: branchIds } },
+      select: { id: true, branch_id: true, deleted_at: true },
+    });
+    for (const assignment of previouslyRemoved) {
+      if (assignment.deleted_at) {
+        await prisma.executiveBranch.update({ where: { id: assignment.id }, data: { deleted_at: null } });
+      }
+    }
+
     await prisma.executiveBranch.createMany({
       data: branchIds.map((branchId) => ({
         executive_id: executiveId,

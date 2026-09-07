@@ -46,37 +46,27 @@ export const assignExecutiveToBranch = async (
     throw new Error('Branch not found or inactive');
   }
 
-  // Assign
-  return prisma.staff.update({
-    where: {
-      id: executiveId,
-    },
-    data: {
-      branch_id: branchId,
-    },
+  const existingAssignment = await prisma.executiveBranch.findFirst({
+    where: { branch_id: branchId, deleted_at: null },
+  });
+  if (existingAssignment && existingAssignment.executive_id !== executiveId) {
+    throw new Error('This branch is already assigned to another executive');
+  }
+
+  await prisma.executiveBranch.upsert({
+    where: { executive_id_branch_id: { executive_id: executiveId, branch_id: branchId } },
+    create: { executive_id: executiveId, branch_id: branchId },
+    update: { deleted_at: null },
+  });
+
+  return prisma.staff.findUniqueOrThrow({
+    where: { id: executiveId },
     include: {
-      user: {
-        select: {
-          id: true,
-          full_name: true,
-          email: true,
-          phone: true,
-        },
-      },
-      role: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-      branch: {
-        select: {
-          id: true,
-          branch_name: true,
-          branch_code: true,
-          city: true,
-          status: true,
-        },
+      user: { select: { id: true, full_name: true, email: true, phone: true } },
+      role: { select: { id: true, name: true } },
+      executive_branches: {
+        where: { deleted_at: null },
+        include: { branch: { select: { id: true, branch_name: true, branch_code: true, city: true, status: true } } },
       },
     },
   });
@@ -111,29 +101,13 @@ export const removeExecutiveFromBranch = async (
     );
   }
 
-  return prisma.staff.update({
-    where: {
-      id: executiveId,
-    },
-    data: {
-      branch_id: null,
-    },
-    include: {
-      user: {
-        select: {
-          id: true,
-          full_name: true,
-          email: true,
-          phone: true,
-        },
-      },
-      role: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
+  await prisma.executiveBranch.updateMany({
+    where: { executive_id: executiveId, deleted_at: null },
+    data: { deleted_at: new Date() },
+  });
+  return prisma.staff.findUniqueOrThrow({
+    where: { id: executiveId },
+    include: { user: { select: { id: true, full_name: true, email: true, phone: true } }, role: { select: { id: true, name: true } } },
   });
 };
 
@@ -177,7 +151,10 @@ export const getExecutiveBranches = async (
     );
   }
 
-  return executive.branch;
+  return prisma.executiveBranch.findMany({
+    where: { executive_id: executiveId, deleted_at: null, branch: { deleted_at: null } },
+    include: { branch: { select: { id: true, branch_name: true, branch_code: true, address: true, city: true, phone: true, status: true, is_active: true } } },
+  });
 };
 
 /**

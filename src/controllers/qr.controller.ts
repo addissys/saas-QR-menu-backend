@@ -11,11 +11,16 @@ import {
   regenerateQrById,
   deleteQrById,
 } from '../services/qr.service';
+import prisma from '../config/prisma';
+import { assertBranchAccess, getScopedBranchIds, findBranchForResource } from '../middleware/branch-scope.middleware';
 
 export const listQrCodesController = async (req: Request, res: Response) => {
   try {
     const branchId = typeof req.query.branch_id === 'string' ? req.query.branch_id : undefined;
-    const qrCodes = await getAllQrCodes(branchId);
+    const tenantId = typeof req.query.tenant_id === 'string' ? req.query.tenant_id : undefined;
+    const scopedBranchIds = getScopedBranchIds(req);
+    if (scopedBranchIds && branchId && !scopedBranchIds.includes(branchId)) return res.status(403).json({ success: false, message: 'You are not authorized to access this branch.' });
+    const qrCodes = await getAllQrCodes(branchId, tenantId, scopedBranchIds);
 
     return res.status(200).json({
       success: true,
@@ -38,6 +43,8 @@ export const getQrCodeByIdController = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'Invalid QR code ID' });
     }
 
+    const resourceBranchId = await findBranchForResource('qrCode', id);
+    if (resourceBranchId) await assertBranchAccess(req, resourceBranchId);
     const qr = await getQrCodeById(id);
 
     return res.status(200).json({
@@ -80,6 +87,9 @@ export const generateQrCodeController = async (req: Request, res: Response) => {
       });
     }
 
+    const table = await prisma.table.findFirst({ where: { id: tableId, deleted_at: null }, select: { branch_id: true } });
+    if (table) await assertBranchAccess(req, table.branch_id);
+
     const result = await generateTableQr(tableId, userId);
 
     return res.status(201).json({
@@ -102,6 +112,9 @@ export const downloadQrImageController = async (req: Request, res: Response) => 
     if (!id) {
       return res.status(400).json({ success: false, message: 'Invalid QR code ID' });
     }
+
+    const resourceBranchId = await findBranchForResource('qrCode', id);
+    if (resourceBranchId) await assertBranchAccess(req, resourceBranchId);
 
     const qrImageUrl = await downloadQrImage(id);
 
@@ -136,6 +149,9 @@ export const regenerateQrByIdController = async (req: Request, res: Response) =>
     if (!id) {
       return res.status(400).json({ success: false, message: 'Invalid QR code ID' });
     }
+
+    const resourceBranchId = await findBranchForResource('qrCode', id);
+    if (resourceBranchId) await assertBranchAccess(req, resourceBranchId);
 
     if (!userId) {
       return res.status(401).json({

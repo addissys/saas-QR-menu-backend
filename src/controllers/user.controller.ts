@@ -1,5 +1,43 @@
 import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import prisma from '../config/prisma';
+import { getScopedBranchIds, assertBranchAccess, findBranchForResource } from '../middleware/branch-scope.middleware';
+
+const MANAGEMENT_ROLES: Record<string, string[]> = {
+  SUPER_ADMIN: ['SUPER_ADMIN', 'CAFE_OWNER', 'OWNER', 'RESTAURANT_OWNER', 'EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
+  CAFE_OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
+  OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
+  RESTAURANT_OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
+  EXECUTIVE: ['BRANCH_MANAGER', 'STAFF'],
+  BRANCH_MANAGER: ['STAFF'],
+};
+
+const assertUserManagementScope = async (req: Request, userId: string) => {
+  const authReq = req as AuthenticatedRequest;
+  const actorRole = authReq.user?.roleName?.toUpperCase();
+  if (actorRole === 'SUPER_ADMIN') return;
+  const target = await prisma.user.findFirst({
+    where: { id: userId, deleted_at: null },
+    select: {
+      staff_profile: { where: { deleted_at: null }, select: { branch: { select: { id: true, tenant_id: true } } } },
+      owned_tenants: { where: { deleted_at: null }, select: { id: true } },
+      role: { select: { name: true } },
+    },
+  });
+  const sameTenant = target?.staff_profile.some((staff) => staff.branch?.tenant_id === authReq.user?.tenantId);
+  const ownsTenant = target?.owned_tenants.some((tenant) => tenant.id === authReq.user?.tenantId);
+  if (!target) throw new Error('User not found');
+  if (!sameTenant && !ownsTenant) throw new Error('You are not authorized to manage this user');
+  if (!MANAGEMENT_ROLES[actorRole ?? '']?.includes(target.role.name.toUpperCase())) {
+    throw new Error('You are not authorized to manage this user');
+  }
+  if (actorRole === 'EXECUTIVE' && target.staff_profile.length > 0 && authReq.user?.assignedBranchIds?.length) {
+    const targetBranches = target.staff_profile.map((staff) => staff.branch?.id).filter(Boolean);
+    if (!targetBranches.some((branchId) => authReq.user?.assignedBranchIds?.includes(branchId!))) {
+      throw new Error('You are not authorized to manage this user');
+    }
+  }
+};
 
 import {
   getAllUsers,
@@ -8,6 +46,9 @@ import {
   updateUser,
   deleteUser,
   updateUserStatus,
+  getUserPermissions,
+  assignUserPermissions,
+  revokeUserPermission,
 } from '../services/user.service';
 
 import {
@@ -27,10 +68,10 @@ export const getUsers = async (
   try {
     const authReq = req as AuthenticatedRequest;
     const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
-    // Only pass tenantId filter for non-superadmins
-    const tenantId = isSuperAdmin ? undefined : (authReq.user?.tenantId || undefined);
+    const requestedTenantId = typeof req.query.tenant_id === 'string' ? req.query.tenant_id : undefined;
+    const tenantId = isSuperAdmin ? requestedTenantId : (authReq.user?.tenantId || undefined);
 
-    const users = await getAllUsers(tenantId);
+    const users = await getAllUsers(tenantId, getScopedBranchIds(req));
 
     return res.status(200).json({
       success: true,
@@ -66,6 +107,9 @@ export const getUser = async (
       });
     }
 
+    const target = await prisma.user.findFirst({ where: { id, deleted_at: null }, select: { staff_profile: { where: { deleted_at: null }, select: { branch_id: true } } } });
+    const scopedBranchIds = getScopedBranchIds(req);
+    if (scopedBranchIds && (!target || !target.staff_profile.some((staff) => scopedBranchIds.includes(staff.branch_id ?? '')))) return res.status(403).json({ success: false, message: 'You are not authorized to access this user.' });
     const user = await getUserById(id);
 
     return res.status(200).json({
@@ -99,6 +143,8 @@ export const createNewUser = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const actorRole = authReq.user?.roleName?.toUpperCase();
     const validation = createUserSchema.safeParse(
       req.body
     );
@@ -109,6 +155,29 @@ export const createNewUser = async (
         message: 'Validation failed',
         errors: validation.error.issues,
       });
+    }
+
+    const targetRole = await prisma.role.findFirst({ where: { id: validation.data.role_id, deleted_at: null } });
+    const roleHierarchy: Record<string, string[]> = {
+      SUPER_ADMIN: ['SUPER_ADMIN', 'CAFE_OWNER', 'OWNER', 'RESTAURANT_OWNER', 'EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
+      CAFE_OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
+      OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
+      RESTAURANT_OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
+      EXECUTIVE: ['BRANCH_MANAGER', 'STAFF'],
+      BRANCH_MANAGER: ['STAFF'],
+    };
+    if (!targetRole || !actorRole || !roleHierarchy[actorRole]?.includes(targetRole.name.toUpperCase())) {
+      return res.status(403).json({ success: false, message: 'You are not authorized to assign this role' });
+    }
+    const requestedBranches = validation.data.branch_ids ?? (validation.data.branch_id ? [validation.data.branch_id] : []);
+    if (requestedBranches.length > 0 && actorRole !== 'SUPER_ADMIN') {
+      const branches = await prisma.branch.findMany({ where: { id: { in: requestedBranches }, deleted_at: null } });
+      if (branches.length !== new Set(requestedBranches).size || branches.some((branch) => branch.tenant_id !== authReq.user?.tenantId)) {
+        return res.status(403).json({ success: false, message: 'You can only assign users to branches in your tenant' });
+      }
+      if ((actorRole === 'EXECUTIVE' || actorRole === 'BRANCH_MANAGER') && branches.some((branch) => !authReq.user?.assignedBranchIds?.includes(branch.id))) {
+        return res.status(403).json({ success: false, message: 'You can only assign users to your authorized branches' });
+      }
     }
 
     const user = await createUser(validation.data);
@@ -154,6 +223,8 @@ export const updateExistingUser = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const actorRole = authReq.user?.roleName?.toUpperCase();
     const { id } = req.params;
 
     // Validate ID
@@ -174,6 +245,24 @@ export const updateExistingUser = async (
         message: 'Validation failed',
         errors: validation.error.issues,
       });
+    }
+
+    await assertUserManagementScope(req, id);
+    if (validation.data.role_id || validation.data.branch_id) {
+      const targetUser = await prisma.user.findFirst({ where: { id, deleted_at: null }, include: { role: true } });
+      if (!targetUser) return res.status(404).json({ success: false, message: 'User not found' });
+      const targetRole = validation.data.role_id
+        ? await prisma.role.findFirst({ where: { id: validation.data.role_id, deleted_at: null } })
+        : targetUser.role;
+      if (!targetRole || !actorRole || !MANAGEMENT_ROLES[actorRole]?.includes(targetRole.name.toUpperCase())) {
+        return res.status(403).json({ success: false, message: 'You are not authorized to assign this role' });
+      }
+      const requestedBranches = validation.data.branch_ids ?? (validation.data.branch_id ? [validation.data.branch_id] : []);
+      if (requestedBranches.length > 0 && actorRole !== 'SUPER_ADMIN') {
+        const branches = await prisma.branch.findMany({ where: { id: { in: requestedBranches }, deleted_at: null } });
+        if (branches.length !== new Set(requestedBranches).size || branches.some((branch) => branch.tenant_id !== authReq.user?.tenantId)) return res.status(403).json({ success: false, message: 'You can only assign users to branches in your tenant' });
+        if ((actorRole === 'EXECUTIVE' || actorRole === 'BRANCH_MANAGER') && branches.some((branch) => !authReq.user?.assignedBranchIds?.includes(branch.id))) return res.status(403).json({ success: false, message: 'You can only assign users to your authorized branches' });
+      }
     }
 
     const user = await updateUser(
@@ -213,6 +302,10 @@ export const updateExistingUser = async (
       });
     }
 
+    if (error.message.includes('not authorized') || error.message.includes('only assign')) {
+      return res.status(403).json({ success: false, message: error.message });
+    }
+
     return res.status(500).json({
       success: false,
       message: 'Failed to update user',
@@ -239,6 +332,8 @@ export const removeUser = async (
       });
     }
 
+    await assertUserManagementScope(req, id);
+
     await deleteUser(id);
 
     return res.status(200).json({
@@ -253,6 +348,10 @@ export const removeUser = async (
         success: false,
         message: 'User not found',
       });
+    }
+
+    if (error.message.includes('not authorized')) {
+      return res.status(403).json({ success: false, message: error.message });
     }
 
     return res.status(500).json({
@@ -280,6 +379,8 @@ export const changeUserStatus = async (
         message: 'Invalid user ID',
       });
     }
+
+    await assertUserManagementScope(req, id);
 
     const validation =
       updateUserStatusSchema.safeParse(req.body);
@@ -317,9 +418,46 @@ export const changeUserStatus = async (
       });
     }
 
+    if (error.message.includes('not authorized')) {
+      return res.status(403).json({ success: false, message: error.message });
+    }
+
     return res.status(500).json({
       success: false,
       message: 'Failed to update user status',
     });
+  }
+};
+
+export const listUserPermissions = async (req: Request, res: Response) => {
+  try {
+    await assertUserManagementScope(req, req.params.id as string);
+    const permissions = await getUserPermissions(req.params.id as string);
+    return res.status(200).json({ success: true, data: permissions.map((entry) => entry.permission) });
+  } catch (error: any) {
+    if (error.message?.includes('not authorized')) return res.status(403).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message || 'Failed to retrieve user permissions' });
+  }
+};
+
+export const assignUserPermissionsController = async (req: Request, res: Response) => {
+  try {
+    await assertUserManagementScope(req, req.params.id as string);
+    const permissionIds = Array.isArray(req.body.permission_ids) ? req.body.permission_ids : [];
+    const permissions = await assignUserPermissions(req.params.id as string, permissionIds);
+    return res.status(200).json({ success: true, data: permissions.map((entry) => entry.permission) });
+  } catch (error: any) {
+    if (error.message?.includes('not authorized')) return res.status(403).json({ success: false, message: error.message });
+    return res.status(error.message === 'User not found' ? 404 : 400).json({ success: false, message: error.message || 'Failed to assign user permissions' });
+  }
+};
+
+export const revokeUserPermissionController = async (req: Request, res: Response) => {
+  try {
+    await assertUserManagementScope(req, req.params.id as string);
+    const permissions = await revokeUserPermission(req.params.id as string, req.params.permissionId as string);
+    return res.status(200).json({ success: true, data: permissions.map((entry) => entry.permission) });
+  } catch (error: any) {
+    return res.status(404).json({ success: false, message: error.message || 'Permission not found' });
   }
 };

@@ -32,6 +32,7 @@ import {
 } from './middleware/security.middleware';
 
 import { errorHandler } from './middleware/error.middleware';
+import { httpAuditMiddleware } from './middleware/http-audit.middleware';
 
 const app = express();
 
@@ -91,6 +92,7 @@ app.use(
 */
 
 app.use('/api/v1', apiRateLimiter);
+app.use(httpAuditMiddleware);
 
 
 /*

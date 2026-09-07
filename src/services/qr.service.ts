@@ -344,7 +344,7 @@ export const deleteTableQr = async (
 /**
  * List all QR codes
  */
-export const getAllQrCodes = async (branchId?: string) => {
+export const getAllQrCodes = async (branchId?: string, tenantId?: string, branchIds?: string[]) => {
   const where: any = {
     deleted_at: null,
   };
@@ -354,6 +354,17 @@ export const getAllQrCodes = async (branchId?: string) => {
       branch_id: branchId,
     };
   }
+
+  if (tenantId) {
+    where.table = {
+      ...(where.table ?? {}),
+      branch: {
+        tenant_id: tenantId,
+        deleted_at: null,
+      },
+    };
+  }
+  if (branchIds) where.table = { ...(where.table ?? {}), branch_id: { in: branchIds } };
 
   return prisma.qrCode.findMany({
     where,
@@ -475,4 +486,4 @@ export const deleteQrById = async (id: string) => {
       is_active: false,
     },
   });
-};
+};

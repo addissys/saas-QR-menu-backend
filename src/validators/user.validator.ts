@@ -29,6 +29,8 @@ export const createUserSchema = z.object({
     .string()
     .uuid('Invalid branch ID')
     .optional(),
+
+  branch_ids: z.array(z.string().uuid('Invalid branch ID')).optional(),
 });
 
 export const updateUserSchema = z.object({
@@ -58,6 +60,8 @@ export const updateUserSchema = z.object({
     .string()
     .uuid('Invalid branch ID')
     .optional(),
+
+  branch_ids: z.array(z.string().uuid('Invalid branch ID')).optional(),
 });
 
 export const updateUserStatusSchema = z.object({
