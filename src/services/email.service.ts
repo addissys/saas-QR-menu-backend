@@ -101,3 +101,44 @@ export const sendPasswordResetEmail = async (
     );
   }
 };
+
+/**
+ * Send an email verification link.
+ */
+export const sendEmailVerificationEmail = async (
+  toEmail: string,
+  verificationLink: string
+) => {
+  const mailUser = process.env.MAIL_USER?.trim();
+  const mailPass = process.env.MAIL_PASS?.trim();
+
+  if (!mailUser || !mailPass) {
+    throw new Error('SMTP credentials are not configured');
+  }
+
+  const mailOptions = {
+    from: `"${process.env.MAIL_FROM_NAME || 'QR Menu'}" <${
+      process.env.MAIL_FROM_ADDRESS || mailUser
+    }>`,
+    to: toEmail,
+    subject: 'Verify Your Email Address',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333;">Verify your email address</h2>
+        <p>Click the button below to verify your QR Menu account.</p>
+        <p>This link will expire in <strong>24 hours</strong>.</p>
+        <a href="${verificationLink}" style="display: inline-block; background-color: #4F46E5; color: #fff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold; margin: 16px 0;">Verify Email</a>
+        <p style="color: #666; font-size: 13px;">Or copy and paste this link into your browser:</p>
+        <a href="${verificationLink}">${verificationLink}</a>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Email verification message successfully sent to ${toEmail}`);
+  } catch (error) {
+    console.error('Failed to send email verification message via SMTP:', error);
+    throw new Error('Failed to send email verification message');
+  }
+};

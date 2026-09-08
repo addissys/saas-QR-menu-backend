@@ -1,5 +1,6 @@
 import prisma from '../config/prisma';
 import { hashPassword } from '../utils/password';
+import { createEmailVerification } from './email-verification.service';
 
 /**
  * Get all users (optionally scoped to a tenant's staff)
@@ -198,6 +199,7 @@ export const createUser = async (data: {
   const passwordHash = await hashPassword(data.password);
 
   const isExecutive = role.name.toUpperCase() === 'EXECUTIVE';
+  const isSuperAdmin = role.name.toUpperCase() === 'SUPER_ADMIN';
   const branchIds = [...new Set(data.branch_ids ?? (data.branch_id ? [data.branch_id] : []))];
   const user = await prisma.user.create({
     data: {
@@ -206,6 +208,9 @@ export const createUser = async (data: {
       phone: data.phone || null,
       password: passwordHash,
       role_id: data.role_id,
+      ...(isSuperAdmin && {
+        email_verified_at: new Date(),
+      }),
       ...(!isExecutive && data.branch_id && {
         staff_profile: {
           create: {
@@ -266,6 +271,10 @@ export const createUser = async (data: {
       },
     },
   });
+
+  if (!isSuperAdmin) {
+    await createEmailVerification(user.id, user.email);
+  }
 
   return user;
 };

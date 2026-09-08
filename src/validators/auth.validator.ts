@@ -76,6 +76,12 @@ export const forgotPasswordSchema = z.object({
     .email('Invalid email address'),
 });
 
+export const resendVerificationSchema = z.object({
+  email: z
+    .string()
+    .email('Invalid email address'),
+});
+
 /**
  * Reset Password
  */

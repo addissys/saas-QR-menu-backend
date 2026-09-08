@@ -184,8 +184,13 @@ export const createNewUser = async (
 
     return res.status(201).json({
       success: true,
-      message: 'User created successfully',
-      data: user,
+      message: user.email_verified_at
+        ? 'User created successfully.'
+        : `User created successfully. Verification email sent to ${user.email}.`,
+      data: {
+        ...user,
+        verification_email_sent: !user.email_verified_at,
+      },
     });
   } catch (error: any) {
     console.error('Create user error:', error);
@@ -204,6 +209,28 @@ export const createNewUser = async (
       return res.status(404).json({
         success: false,
         message: 'Role not found',
+      });
+    }
+
+    if (
+      error.message === 'SMTP credentials are not configured' ||
+      error.message === 'Failed to send email verification message'
+    ) {
+      return res.status(503).json({
+        success: false,
+        message:
+          'User was created, but the verification email could not be sent. Use the resend verification endpoint after fixing SMTP configuration.',
+      });
+    }
+
+    if (
+      error.code === 'P2021' &&
+      error.message?.includes('email_verification_tokens')
+    ) {
+      return res.status(503).json({
+        success: false,
+        message:
+          'User creation requires the email verification database migration. Apply the pending Prisma migration first.',
       });
     }
 

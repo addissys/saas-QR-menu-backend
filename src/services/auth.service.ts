@@ -12,6 +12,7 @@ import {
   hashPassword,
 } from '../utils/password';
 import { sendPasswordResetEmail } from './email.service';
+import { createEmailVerification, verifyEmail } from './email-verification.service';
 
 /**
  * Register Cafe Owner
@@ -93,6 +94,8 @@ export const registerUser = async (data: {
     },
   });
 
+  await createEmailVerification(user.id, user.email);
+
   return user;
 };
 
@@ -130,6 +133,12 @@ export const loginUser = async (
 
   if (!user.is_active) {
     throw new Error('Your account is inactive');
+  }
+
+  const isSuperAdmin = user.role.name.toUpperCase() === 'SUPER_ADMIN';
+
+  if (!isSuperAdmin && !user.email_verified_at) {
+    throw new Error('Please verify your email address before logging in');
   }
 
   const passwordMatches = await comparePassword(
@@ -588,3 +597,5 @@ export const resetPassword = async (
     }),
   ]);
 };
+
+export { verifyEmail };

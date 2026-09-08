@@ -6,6 +6,7 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 // ==========================================
 // ENUMS functions
 // ==========================================
@@ -60,15 +61,16 @@ model User {
   deleted_at DateTime? @db.Timestamp()
 
   // Relations
-  role                  Role                 @relation(fields: [role_id], references: [id])
-  user_sessions         UserSession[]
-  owned_tenants         Tenant[]             @relation("TenantOwner")
-  staff_profile         Staff[]
-  password_reset_tokens PasswordResetToken[]
-  generated_qrs         QrCode[]             @relation("QrGenerator")
-  notifications         Notification[]
-  audit_logs            AuditLog[]
-  permissions           UserPermission[]
+  role                      Role                     @relation(fields: [role_id], references: [id])
+  user_sessions             UserSession[]
+  owned_tenants             Tenant[]                 @relation("TenantOwner")
+  staff_profile             Staff[]
+  password_reset_tokens     PasswordResetToken[]
+  email_verification_tokens EmailVerificationToken[]
+  generated_qrs             QrCode[]                 @relation("QrGenerator")
+  notifications             Notification[]
+  audit_logs                AuditLog[]
+  permissions               UserPermission[]
 
   @@map("users")
 }
@@ -121,6 +123,21 @@ model PasswordResetToken {
   @@index([user_id])
   @@index([expires_at])
   @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  token_hash String    @unique @db.Text
+  expires_at DateTime  @db.Timestamp()
+  used_at    DateTime? @db.Timestamp()
+  created_at DateTime  @default(now()) @db.Timestamp()
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([expires_at])
+  @@map("email_verification_tokens")
 }
 
 model Permission {
@@ -205,9 +222,9 @@ model Branch {
   deleted_at  DateTime?    @db.Timestamp()
 
   // Relations
-  tenant     Tenant     @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-  manager    Staff?     @relation("BranchManager", fields: [manager_id], references: [id])
-  staff      Staff[]    @relation("BranchStaff")
+  tenant     Tenant            @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  manager    Staff?            @relation("BranchManager", fields: [manager_id], references: [id])
+  staff      Staff[]           @relation("BranchStaff")
   executives ExecutiveBranch[] @relation("BranchExecutives")
   tables     Table[]
   categories Category[]
@@ -229,10 +246,10 @@ model Staff {
   deleted_at        DateTime?        @db.Timestamp()
 
   // Relations
-  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  role             Role     @relation(fields: [role_id], references: [id])
-  branch           Branch?  @relation("BranchStaff", fields: [branch_id], references: [id])
-  managed_branches Branch[] @relation("BranchManager")
+  user               User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  role               Role              @relation(fields: [role_id], references: [id])
+  branch             Branch?           @relation("BranchStaff", fields: [branch_id], references: [id])
+  managed_branches   Branch[]          @relation("BranchManager")
   executive_branches ExecutiveBranch[] @relation("ExecutiveBranches")
 
   @@map("staff")
@@ -338,27 +355,27 @@ model Notification {
 }
 
 model AuditLog {
-  id          String   @id @default(uuid()) @db.Uuid
-  user_id     String?  @db.Uuid
-  tenant_id   String?  @db.Uuid
-  module      String   @db.VarChar(255)
-  action      String   @db.VarChar(255)
-  entity_name String?  @db.VarChar(255)
-  entity_id   String?  @db.Uuid
-  old_values  Json?    @db.JsonB
-  new_values  Json?    @db.JsonB
-  ip_address  String?  @db.VarChar(255)
-  user_agent  String?  @db.Text
-  user_role   String?  @db.VarChar(255)
-  branch_id   String?  @db.Uuid
-  method      String?  @db.VarChar(10)
-  endpoint    String?  @db.Text
-  status_code Int?
-  request_body Json?   @db.JsonB
-  response_body Json?  @db.JsonB
-  success     Boolean?
-  error_message String? @db.Text
-  created_at  DateTime @default(now()) @db.Timestamp()
+  id            String   @id @default(uuid()) @db.Uuid
+  user_id       String?  @db.Uuid
+  tenant_id     String?  @db.Uuid
+  module        String   @db.VarChar(255)
+  action        String   @db.VarChar(255)
+  entity_name   String?  @db.VarChar(255)
+  entity_id     String?  @db.Uuid
+  old_values    Json?    @db.JsonB
+  new_values    Json?    @db.JsonB
+  ip_address    String?  @db.VarChar(255)
+  user_agent    String?  @db.Text
+  user_role     String?  @db.VarChar(255)
+  branch_id     String?  @db.Uuid
+  method        String?  @db.VarChar(10)
+  endpoint      String?  @db.Text
+  status_code   Int?
+  request_body  Json?    @db.JsonB
+  response_body Json?    @db.JsonB
+  success       Boolean?
+  error_message String?  @db.Text
+  created_at    DateTime @default(now()) @db.Timestamp()
 
   // Relations
   user   User?   @relation(fields: [user_id], references: [id], onDelete: SetNull)
@@ -368,10 +385,10 @@ model AuditLog {
 }
 
 model ExecutiveBranch {
-  id           String   @id @default(uuid()) @db.Uuid
-  executive_id String   @db.Uuid
-  branch_id    String   @db.Uuid
-  created_at   DateTime @default(now()) @db.Timestamp()
+  id           String    @id @default(uuid()) @db.Uuid
+  executive_id String    @db.Uuid
+  branch_id    String    @db.Uuid
+  created_at   DateTime  @default(now()) @db.Timestamp()
   deleted_at   DateTime? @db.Timestamp()
 
   executive Staff  @relation("ExecutiveBranches", fields: [executive_id], references: [id], onDelete: Cascade)

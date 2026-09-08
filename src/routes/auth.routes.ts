@@ -10,6 +10,8 @@ import {
   updatePassword,
   forgotPasswordRequest,
   resetPasswordHandler,
+  verifyEmailHandler,
+  resendVerificationEmail,
 } from '../controllers/auth.controller';
 
 import { authenticate } from '../middleware/auth.middleware';
@@ -248,6 +250,36 @@ router.post(
   '/reset-password',
   authRateLimiter,
   resetPasswordHandler
+);
+
+router.get(
+  '/verify-email',
+  authRateLimiter,
+  verifyEmailHandler
+);
+
+router.post(
+  '/verify-email',
+  authRateLimiter,
+  verifyEmailHandler
+);
+
+router.get(
+  '/verify-email/:token',
+  authRateLimiter,
+  verifyEmailHandler
+);
+
+router.post(
+  '/verify-email/:token',
+  authRateLimiter,
+  verifyEmailHandler
+);
+
+router.post(
+  '/resend-verification',
+  authRateLimiter,
+  resendVerificationEmail
 );
 
 /*

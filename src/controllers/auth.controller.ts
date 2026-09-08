@@ -11,6 +11,7 @@ import {
   refreshTokenSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  resendVerificationSchema,
 } from '../validators/auth.validator';
 
 import {
@@ -23,9 +24,11 @@ import {
   changePassword,
   forgotPassword,
   resetPassword,
+  verifyEmail,
 } from '../services/auth.service';
 
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { resendEmailVerification } from '../services/email-verification.service';
 
 const isDatabaseUnavailableError = (error: unknown) => {
   const err = error as {
@@ -38,6 +41,15 @@ const isDatabaseUnavailableError = (error: unknown) => {
     err.name === 'PrismaClientInitializationError' ||
     err.code === 'P1001' ||
     Boolean(err.message?.includes("Can't reach database server"))
+  );
+};
+
+const isMissingEmailVerificationTableError = (error: unknown) => {
+  const err = error as { code?: string; message?: string };
+
+  return (
+    err.code === 'P2021' &&
+    err.message?.includes('email_verification_tokens')
   );
 };
 
@@ -86,6 +98,25 @@ export const register = async (
 
     if (isDatabaseUnavailableError(error)) {
       return databaseUnavailableResponse(res);
+    }
+
+    if (isMissingEmailVerificationTableError(error)) {
+      return res.status(503).json({
+        success: false,
+        message:
+          'Registration is temporarily unavailable. Apply the email verification database migration first.',
+      });
+    }
+
+    if (
+      error.message === 'SMTP credentials are not configured' ||
+      error.message === 'Failed to send email verification message'
+    ) {
+      return res.status(503).json({
+        success: false,
+        message:
+          'Account creation requires a working email service. Check the SMTP configuration and try again.',
+      });
     }
 
     if (
@@ -524,6 +555,100 @@ export const resetPasswordHandler = async (
     return res.status(500).json({
       success: false,
       message: 'Failed to reset password',
+    });
+  }
+};
+
+/**
+ * Verify an email address from the link sent after account creation.
+ */
+export const verifyEmailHandler = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const queryToken = typeof req.query.token === 'string' ? req.query.token : '';
+    const bodyToken = typeof req.body?.token === 'string' ? req.body.token : '';
+    const paramToken = typeof req.params.token === 'string' ? req.params.token : '';
+    const token = queryToken || bodyToken || paramToken;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Verification token is required',
+      });
+    }
+
+    await verifyEmail(token);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email verified successfully. You can now log in.',
+    });
+  } catch (error: any) {
+    console.error('Email verification error:', error);
+
+    if (
+      error.message === 'Invalid or expired verification token' ||
+      error.message === 'Verification token has expired'
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to verify email',
+    });
+  }
+};
+
+/**
+ * Resend verification email for an unverified account.
+ */
+export const resendVerificationEmail = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const validation = resendVerificationSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: validation.error.issues,
+      });
+    }
+
+    await resendEmailVerification(validation.data.email);
+
+    return res.status(200).json({
+      success: true,
+      message: 'If the email is registered and unverified, a verification email has been sent.',
+    });
+  } catch (error: any) {
+    console.error('Resend verification email error:', error);
+
+    if (isDatabaseUnavailableError(error)) {
+      return databaseUnavailableResponse(res);
+    }
+
+    if (
+      error.message === 'SMTP credentials are not configured' ||
+      error.message === 'Failed to send email verification message'
+    ) {
+      return res.status(503).json({
+        success: false,
+        message: 'Email service is unavailable. Check the SMTP configuration and try again.',
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to resend verification email',
     });
   }
 };
