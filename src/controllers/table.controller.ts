@@ -3,6 +3,7 @@ import {
   Response,
 } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { assertBranchAccess, getScopedBranchIds, findBranchForResource } from '../middleware/branch-scope.middleware';
 
 import {
   createTableSchema,
@@ -39,8 +40,9 @@ export const listTables = async (
       tenantId = authReq.user.tenantId;
     }
 
-    const tables =
-      await getAllTables(branchId, tenantId);
+    const scopedBranchIds = getScopedBranchIds(req);
+    if (scopedBranchIds && branchId && !scopedBranchIds.includes(branchId)) return res.status(403).json({ success: false, message: 'You are not authorized to access this branch.' });
+    const tables = await getAllTables(branchId, tenantId, scopedBranchIds);
 
     return res.status(200).json({
       success: true,
@@ -78,6 +80,8 @@ export const getTable = async (
       });
     }
 
+    const resourceBranchId = await findBranchForResource('table', id);
+    if (resourceBranchId) await assertBranchAccess(req, resourceBranchId);
     const table =
       await getTableById(id);
 
@@ -165,6 +169,8 @@ export const updateTableController =
     res: Response
   ) => {
     try {
+      const branchId = await findBranchForResource('table', req.params.id as string);
+      if (branchId) await assertBranchAccess(req, branchId);
       const id = req.params.id;
 
       if (typeof id !== 'string') {
@@ -225,6 +231,8 @@ export const deleteTableController =
     res: Response
   ) => {
     try {
+      const branchId = await findBranchForResource('table', req.params.id as string);
+      if (branchId) await assertBranchAccess(req, branchId);
       const id = req.params.id;
 
       if (typeof id !== 'string') {

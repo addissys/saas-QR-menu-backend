@@ -4,7 +4,8 @@ export const getAllMenuItems = async (
   branchId?: string,
   categoryId?: string,
   search?: string,
-  tenantId?: string
+  tenantId?: string,
+  branchIds?: string[]
 ) => {
   const where: any = {
     deleted_at: null,
@@ -13,6 +14,7 @@ export const getAllMenuItems = async (
   if (branchId) {
     where.branch_id = branchId;
   }
+  if (branchIds) where.branch_id = { in: branchIds };
 
   if (categoryId) {
     where.category_id = categoryId;

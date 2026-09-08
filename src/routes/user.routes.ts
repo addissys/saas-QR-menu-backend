@@ -7,9 +7,13 @@ import {
   updateExistingUser,
   removeUser,
   changeUserStatus,
+  listUserPermissions,
+  assignUserPermissionsController,
+  revokeUserPermissionController,
 } from '../controllers/user.controller';
 
 import { authenticate } from '../middleware/auth.middleware';
+import { requireRoles } from '../middleware/role.middleware';
 
 const router = Router();
 
@@ -133,6 +137,11 @@ router.get(
   authenticate,
   getUser
 );
+
+const userManagers = requireRoles('SUPER_ADMIN', 'CAFE_OWNER', 'OWNER', 'RESTAURANT_OWNER', 'EXECUTIVE', 'BRANCH_MANAGER');
+router.get('/:id/permissions', authenticate, userManagers, listUserPermissions);
+router.post('/:id/permissions', authenticate, userManagers, assignUserPermissionsController);
+router.delete('/:id/permissions/:permissionId', authenticate, userManagers, revokeUserPermissionController);
 
 /**
  * @swagger

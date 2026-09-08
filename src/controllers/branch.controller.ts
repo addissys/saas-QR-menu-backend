@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { getScopedBranchIds, assertBranchAccess } from '../middleware/branch-scope.middleware';
 
 import {
   getAllBranches,
@@ -60,9 +61,7 @@ export const listBranches = async (
     const userRole = authReq.user?.roleName?.toUpperCase() || '';
     const isOwnerOrAdmin = ['SUPER_ADMIN', 'CAFE_OWNER', 'OWNER', 'RESTAURANT_OWNER'].includes(userRole);
 
-    const branch_ids = !isOwnerOrAdmin && authReq.user?.assignedBranchIds
-      ? authReq.user.assignedBranchIds
-      : undefined;
+    const branch_ids = !isOwnerOrAdmin ? (getScopedBranchIds(req) ?? []) : undefined;
 
     const result = await getAllBranches({
       page,
@@ -105,6 +104,10 @@ export const getBranch = async (
       });
     }
 
+    const scopedBranchIds = getScopedBranchIds(req);
+    if (scopedBranchIds && !scopedBranchIds.includes(id)) {
+      return res.status(403).json({ success: false, message: 'You are not authorized to access this branch.' });
+    }
     const branch = await getBranchById(id);
 
     if (!branch) {
@@ -193,6 +196,7 @@ export const updateBranchController = async (
   res: Response
 ) => {
   try {
+    if (typeof req.params.id === 'string') await assertBranchAccess(req, req.params.id);
     const id = req.params.id;
 
     if (typeof id !== 'string') {
@@ -246,6 +250,7 @@ export const deleteBranch = async (
   res: Response
 ) => {
   try {
+    if (typeof req.params.id === 'string') await assertBranchAccess(req, req.params.id);
     const id = req.params.id;
 
     if (typeof id !== 'string') {

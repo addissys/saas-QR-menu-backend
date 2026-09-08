@@ -7,8 +7,10 @@ import {
   updateBranchController,
   deleteBranch,
 } from '../controllers/branch.controller';
+import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
+router.use(authenticate);
 
 /**
  * @swagger

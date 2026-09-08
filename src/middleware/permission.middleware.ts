@@ -29,7 +29,7 @@ export const authorizePermission = (
         });
       }
 
-      // Find the permission assigned to the user's role
+      // A permission is effective when inherited from the role or explicitly granted.
       const rolePermission =
         await prisma.rolePermission.findFirst({
           where: {
@@ -48,7 +48,16 @@ export const authorizePermission = (
           },
         });
 
-      if (!rolePermission) {
+      const userPermission = rolePermission || await prisma.userPermission.findFirst({
+        where: {
+          user_id: req.user.id,
+          deleted_at: null,
+          permission: { permission: requiredPermission, deleted_at: null },
+        },
+        include: { permission: true },
+      });
+
+      if (!userPermission) {
         return res.status(403).json({
           success: false,
           message: 'You do not have the required permission',
@@ -57,7 +66,7 @@ export const authorizePermission = (
       }
 
       // Make sure the role itself is not soft deleted
-      if (rolePermission.role.deleted_at) {
+      if (rolePermission?.role?.deleted_at) {
         return res.status(403).json({
           success: false,
           message: 'Your role is inactive',

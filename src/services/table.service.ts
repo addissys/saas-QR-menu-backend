@@ -2,7 +2,8 @@ import prisma from '../config/prisma';
 
 export const getAllTables = async (
   branchId?: string,
-  tenantId?: string
+  tenantId?: string,
+  branchIds?: string[]
 ) => {
   return prisma.table.findMany({
     where: {
@@ -18,6 +19,7 @@ export const getAllTables = async (
           deleted_at: null,
         },
       }),
+      ...(branchIds && { branch_id: { in: branchIds } }),
     },
 
     orderBy: {

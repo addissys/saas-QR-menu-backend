@@ -3,6 +3,7 @@ import {
   Response,
 } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { assertBranchAccess, getScopedBranchIds, findBranchForResource } from '../middleware/branch-scope.middleware';
 
 import {
   createCategorySchema,
@@ -48,7 +49,8 @@ export const listCategories = async (
       await getAllCategories(
         branchId,
         search,
-        tenantId
+        tenantId,
+        getScopedBranchIds(req)
       );
 
     return res.status(200).json({
@@ -87,6 +89,8 @@ export const getCategory = async (
       });
     }
 
+    const resourceBranchId = await findBranchForResource('category', id);
+    if (resourceBranchId) await assertBranchAccess(req, resourceBranchId);
     const category =
       await getCategoryById(id);
 
@@ -174,6 +178,8 @@ export const updateCategoryController =
     res: Response
   ) => {
     try {
+      const branchId = await findBranchForResource('category', req.params.id as string);
+      if (branchId) await assertBranchAccess(req, branchId);
       const id = req.params.id;
 
       if (typeof id !== 'string') {
@@ -233,6 +239,8 @@ export const deleteCategoryController =
     res: Response
   ) => {
     try {
+      const branchId = await findBranchForResource('category', req.params.id as string);
+      if (branchId) await assertBranchAccess(req, branchId);
       const id = req.params.id;
 
       if (typeof id !== 'string') {

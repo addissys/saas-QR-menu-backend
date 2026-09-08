@@ -4,12 +4,15 @@ import {
   getPermissionsByRole,
   assignPermissions,
   revokePermission,
+  listPermissions,
 } from '../controllers/role-permission.controller';
 
 import { authenticate } from '../middleware/auth.middleware';
 import { requireRoles } from '../middleware/role.middleware';
 
 const router = Router();
+
+router.get('/permissions', authenticate, listPermissions);
 
 /**
  * All role-permission endpoints require authentication.
@@ -25,7 +28,7 @@ const router = Router();
 router.get(
   '/roles/:roleId/permissions',
   authenticate,
-  requireRoles('SUPER_ADMIN'),
+  requireRoles('SUPER_ADMIN', 'CAFE_OWNER', 'OWNER', 'RESTAURANT_OWNER', 'EXECUTIVE', 'BRANCH_MANAGER'),
   getPermissionsByRole
 );
 

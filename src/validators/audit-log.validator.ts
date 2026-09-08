@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const createAuditLogSchema = z.object({
-  user_id: z.string().uuid(),
+  user_id: z.string().uuid().optional(),
 
   tenant_id: z
     .string()
@@ -44,6 +44,15 @@ export const createAuditLogSchema = z.object({
   user_agent: z
     .string()
     .optional(),
+  user_role: z.string().max(255).optional(),
+  branch_id: z.string().uuid().optional(),
+  method: z.string().max(10).optional(),
+  endpoint: z.string().max(2000).optional(),
+  status_code: z.number().int().optional(),
+  request_body: z.unknown().optional(),
+  response_body: z.unknown().optional(),
+  success: z.boolean().optional(),
+  error_message: z.string().optional(),
 });
 
 export const auditLogQuerySchema = z.object({
@@ -77,4 +86,10 @@ export const auditLogQuerySchema = z.object({
     .string()
     .uuid()
     .optional(),
+  method: z.string().optional(),
+  user_role: z.string().optional(),
+  status_code: z.coerce.number().int().optional(),
+  success: z.enum(['true', 'false']).transform((value) => value === 'true').optional(),
+  endpoint: z.string().optional(),
+  search: z.string().optional(),
 });

@@ -110,6 +110,15 @@ export const assignPermissionsToRole = async (
 
   const assignedPermissions = [];
 
+    await prisma.rolePermission.updateMany({
+      where: {
+        role_id: roleId,
+        deleted_at: null,
+        permission_id: { notIn: uniquePermissionIds },
+      },
+      data: { deleted_at: new Date() },
+    });
+
   for (const permissionId of uniquePermissionIds) {
     const existing =
       await prisma.rolePermission.findUnique({
