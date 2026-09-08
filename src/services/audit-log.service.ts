@@ -86,8 +86,6 @@ export const getAuditLogs = async (
   const skip = (page - 1) * limit;
 
   const where = {
-    deleted_at: null,
-
     ...(options.module
       ? {
           module: {
@@ -165,7 +163,7 @@ export const getAuditLogs = async (
   ]);
 
   return {
-    logs,
+    auditLogs: logs,
     pagination: {
       page,
       limit,
@@ -179,12 +177,13 @@ export const getAuditLogs = async (
  * Get one audit log
  */
 export const getAuditLogById = async (
-  id: string
+  id: string,
+  tenantId?: string
 ) => {
   const auditLog = await prisma.auditLog.findFirst({
     where: {
       id,
-      deleted_at: null,
+      ...(tenantId ? { tenant_id: tenantId } : {}),
     },
 
     include: {

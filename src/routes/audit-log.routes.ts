@@ -56,7 +56,12 @@ const router = Router();
 router.get(
   '/',
   authenticate,
-  requireRoles('SUPER_ADMIN'),
+  requireRoles(
+    'SUPER_ADMIN',
+    'OWNER',
+    'CAFE_OWNER',
+    'RESTAURANT_OWNER'
+  ),
   listAuditLogs
 );
 
@@ -86,7 +91,12 @@ router.get(
 router.get(
   '/:id',
   authenticate,
-  requireRoles('SUPER_ADMIN'),
+  requireRoles(
+    'SUPER_ADMIN',
+    'OWNER',
+    'CAFE_OWNER',
+    'RESTAURANT_OWNER'
+  ),
   getAuditLog
 );
 

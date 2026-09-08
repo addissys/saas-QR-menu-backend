@@ -11,6 +11,32 @@ import {
   createAuditLogSchema,
   auditLogQuerySchema,
 } from '../validators/audit-log.validator';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
+
+const OWNER_ROLES = new Set([
+  'OWNER',
+  'CAFE_OWNER',
+  'RESTAURANT_OWNER',
+]);
+
+const getAuditLogTenantScope = (
+  req: AuthenticatedRequest
+) => {
+  const roleName = req.user?.roleName?.toUpperCase();
+
+  if (roleName === 'SUPER_ADMIN') {
+    return { isSuperAdmin: true, tenantId: undefined };
+  }
+
+  if (!OWNER_ROLES.has(roleName || '')) {
+    return { isSuperAdmin: false, tenantId: undefined };
+  }
+
+  return {
+    isSuperAdmin: false,
+    tenantId: req.user?.tenantId,
+  };
+};
 
 /**
  * GET /audit-logs
@@ -20,8 +46,16 @@ export const listAuditLogs = async (
   res: Response
 ) => {
   try {
-    const authReq = req as any;
-    const isSuperAdmin = authReq.user?.roleName?.toUpperCase() === 'SUPER_ADMIN';
+    const authReq = req as AuthenticatedRequest;
+    const { isSuperAdmin, tenantId } =
+      getAuditLogTenantScope(authReq);
+
+    if (!isSuperAdmin && !tenantId) {
+      return res.status(403).json({
+        success: false,
+        message: 'A tenant is required to access audit logs',
+      });
+    }
 
     const queryResult =
       auditLogQuerySchema.safeParse(req.query);
@@ -34,10 +68,10 @@ export const listAuditLogs = async (
       });
     }
 
-    const queryData = { ...queryResult.data };
-    if (!isSuperAdmin && authReq.user?.tenantId) {
-      queryData.tenant_id = authReq.user.tenantId;
-    }
+    const queryData = {
+      ...queryResult.data,
+      ...(isSuperAdmin ? {} : { tenant_id: tenantId }),
+    };
 
     const result = await getAuditLogs(
       queryData
@@ -46,7 +80,10 @@ export const listAuditLogs = async (
     return res.status(200).json({
       success: true,
       message: 'Audit logs retrieved successfully',
-      data: result,
+      data: {
+        auditLogs: result.auditLogs,
+        pagination: result.pagination,
+      },
     });
   } catch (error) {
     console.error('List audit logs error:', error);
@@ -66,6 +103,17 @@ export const getAuditLog = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const { isSuperAdmin, tenantId } =
+      getAuditLogTenantScope(authReq);
+
+    if (!isSuperAdmin && !tenantId) {
+      return res.status(403).json({
+        success: false,
+        message: 'A tenant is required to access audit logs',
+      });
+    }
+
     const id = req.params.id as string;
 
     if (!id) {
@@ -76,7 +124,10 @@ export const getAuditLog = async (
     }
 
     const auditLog =
-      await getAuditLogById(id);
+      await getAuditLogById(
+        id,
+        isSuperAdmin ? undefined : tenantId
+      );
 
     return res.status(200).json({
       success: true,

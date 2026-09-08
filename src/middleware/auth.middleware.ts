@@ -177,7 +177,7 @@ export const authenticate = async (
       },
     });
 
-    let tenantId = ownedTenant?.id;
+    let tenantId = ownedTenant?.id || payload.tenant_id;
     let assignedBranchIds: string[] = [];
 
     const staffRecords = await prisma.staff.findMany({

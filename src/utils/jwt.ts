@@ -4,6 +4,7 @@ import { config } from '../config/env';
 export interface AccessTokenPayload {
   userId: string;
   roleId: string;
+  tenant_id?: string;
 }
 
 export interface RefreshTokenPayload {
