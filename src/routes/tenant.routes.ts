@@ -9,6 +9,7 @@ import {
 } from '../controllers/tenant.controller';
 
 import { authenticate } from '../middleware/auth.middleware';
+import { requireRoles } from '../middleware/role.middleware';
 
 const router = Router();
 
@@ -154,6 +155,8 @@ router.get(
  *         description: Validation failed
  *       401:
  *         description: Authentication required
+ *       403:
+ *         description: Not authorized to create a restaurant
  *       409:
  *         description: Slug or email already taken
  *       500:
@@ -162,6 +165,13 @@ router.get(
 router.post(
   '/',
   authenticate,
+  requireRoles(
+    'SUPER_ADMIN',
+    'CAFE_OWNER',
+    'OWNER',
+    'RESTAURANT_OWNER',
+    { message: 'You do not have permission to create a restaurant.' }
+  ),
   createTenantController
 );
 

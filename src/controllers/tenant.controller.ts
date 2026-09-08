@@ -145,9 +145,28 @@ export const createTenantController =
     res: Response
   ) => {
     try {
+      const authReq = req as AuthenticatedRequest;
+      const roleName = authReq.user?.roleName?.toUpperCase() || '';
+      const allowedRoles = ['SUPER_ADMIN', 'CAFE_OWNER', 'OWNER', 'RESTAURANT_OWNER'];
+
+      if (!allowedRoles.includes(roleName)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to create a restaurant.',
+        });
+      }
+
+      const isSuperAdmin = roleName === 'SUPER_ADMIN';
+
+      // Non-superadmins can only create tenants for themselves
+      const requestPayload = { ...req.body };
+      if (!isSuperAdmin && authReq.user?.id) {
+        requestPayload.owner_id = authReq.user.id;
+      }
+
       const validation =
         createTenantSchema.safeParse(
-          req.body
+          requestPayload
         );
 
       if (!validation.success) {
