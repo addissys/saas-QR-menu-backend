@@ -11,8 +11,13 @@ import {
   updateTenantController,
   deleteTenant,
 } from '../controllers/admin.controller';
+import { authenticate } from '../middleware/auth.middleware';
+import { requireRoles } from '../middleware/role.middleware';
 
 const router = Router();
+
+// Protect all admin routes for SUPER_ADMIN only
+router.use(authenticate, requireRoles('SUPER_ADMIN'));
 
 /**
  * @swagger

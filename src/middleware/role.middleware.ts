@@ -26,9 +26,27 @@ import { AuthenticatedRequest } from './auth.middleware';
  * 3. Have a non-deleted role
  * 4. Have one of the required roles
  */
+export interface RequireRolesOptions {
+  message?: string;
+}
+
 export const requireRoles = (
-  ...allowedRoles: string[]
+  ...args: (string | RequireRolesOptions)[]
 ) => {
+  let options: RequireRolesOptions | undefined;
+  const allowedRoles: string[] = [];
+
+  for (const arg of args) {
+    if (typeof arg === 'string') {
+      allowedRoles.push(arg);
+    } else if (typeof arg === 'object' && arg !== null) {
+      options = arg;
+    }
+  }
+
+  const unauthorizedMessage =
+    options?.message || 'You do not have permission to perform this action';
+
   return async (
     req: AuthenticatedRequest,
     res: Response,
@@ -99,8 +117,7 @@ export const requireRoles = (
       if (!hasRequiredRole) {
         return res.status(403).json({
           success: false,
-          message:
-            'You do not have permission to perform this action',
+          message: unauthorizedMessage,
         });
       }
 
