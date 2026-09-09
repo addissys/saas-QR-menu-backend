@@ -201,6 +201,9 @@ export const loginUser = async (
 
   const permissions = await getEffectivePermissions(user.id, user.role_id);
 
+  const ownedTenant = user.owned_tenants[0];
+  const isOnboardingCompleted = isSuperAdmin || Boolean(ownedTenant && ownedTenant.business_name && ownedTenant.business_name.trim().length > 0);
+
   return {
     user: {
       id: user.id,
@@ -215,6 +218,7 @@ export const loginUser = async (
       owned_tenants: user.owned_tenants,
       staff_profile: user.staff_profile,
       permissions,
+      is_onboarding_completed: isOnboardingCompleted,
     },
 
     access_token: accessToken,
@@ -402,7 +406,11 @@ export const getCurrentUser = async (
 
   const permissions = await getEffectivePermissions(userId, user.role.id);
 
-  return { ...user, permissions };
+  const isSuperAdmin = user.role.name.toUpperCase() === 'SUPER_ADMIN';
+  const ownedTenant = user.owned_tenants[0];
+  const isOnboardingCompleted = isSuperAdmin || Boolean(ownedTenant && ownedTenant.business_name && ownedTenant.business_name.trim().length > 0);
+
+  return { ...user, permissions, is_onboarding_completed: isOnboardingCompleted };
 };
 
 /**

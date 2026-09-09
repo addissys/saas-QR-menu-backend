@@ -197,6 +197,16 @@ export const login = async (
       });
     }
 
+    if (
+      error.message ===
+      'Please verify your email address before logging in'
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: error.message,
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: 'Login failed',
