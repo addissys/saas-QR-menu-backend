@@ -208,9 +208,7 @@ export const createUser = async (data: {
       phone: data.phone || null,
       password: passwordHash,
       role_id: data.role_id,
-      ...(isSuperAdmin && {
-        email_verified_at: new Date(),
-      }),
+      email_verified_at: new Date(),
       ...(!isExecutive && data.branch_id && {
         staff_profile: {
           create: {
@@ -533,19 +531,33 @@ export const getUserPermissions = async (userId: string) => {
 export const assignUserPermissions = async (userId: string, permissionIds: string[]) => {
   const user = await prisma.user.findFirst({ where: { id: userId, deleted_at: null } });
   if (!user) throw new Error('User not found');
-  const permissions = await prisma.permission.findMany({ where: { id: { in: [...new Set(permissionIds)] }, deleted_at: null } });
-  if (permissions.length !== new Set(permissionIds).size) throw new Error('One or more permissions were not found');
-  await prisma.userPermission.updateMany({
-    where: { user_id: userId, deleted_at: null, permission_id: { notIn: [...new Set(permissionIds)] } },
-    data: { deleted_at: new Date() },
-  });
-  for (const permission of permissions) {
-    await prisma.userPermission.upsert({
-      where: { user_id_permission_id: { user_id: userId, permission_id: permission.id } },
-      create: { user_id: userId, permission_id: permission.id },
-      update: { deleted_at: null },
-    });
+
+  const uniqueIds = [...new Set(permissionIds)];
+
+  // If there are requested permissions, validate they all exist
+  if (uniqueIds.length > 0) {
+    const permissions = await prisma.permission.findMany({ where: { id: { in: uniqueIds }, deleted_at: null } });
+    if (permissions.length !== uniqueIds.length) throw new Error('One or more permissions were not found');
   }
+
+  // Atomic sync: soft-delete removed permissions, upsert kept/new permissions
+  await prisma.$transaction(async (tx) => {
+    // Soft-delete any existing user permissions NOT in the submitted list
+    await tx.userPermission.updateMany({
+      where: { user_id: userId, deleted_at: null, permission_id: { notIn: uniqueIds } },
+      data: { deleted_at: new Date() },
+    });
+
+    // Upsert each submitted permission (restore if previously soft-deleted, create if new)
+    for (const permissionId of uniqueIds) {
+      await tx.userPermission.upsert({
+        where: { user_id_permission_id: { user_id: userId, permission_id: permissionId } },
+        create: { user_id: userId, permission_id: permissionId },
+        update: { deleted_at: null },
+      });
+    }
+  });
+
   return getUserPermissions(userId);
 };
 

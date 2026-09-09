@@ -8,6 +8,7 @@ import {
   deleteTableController,
 } from '../controllers/table.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { authorizePermission } from '../middleware/permission.middleware';
 
 const router = Router();
 router.use(authenticate);
@@ -133,6 +134,7 @@ router.get(
  */
 router.post(
   '/',
+  authorizePermission('tables.create'),
   createTableController
 );
 
@@ -181,6 +183,7 @@ router.post(
  */
 router.patch(
   '/:id',
+  authorizePermission('tables.update'),
   updateTableController
 );
 
@@ -212,6 +215,7 @@ router.patch(
  */
 router.delete(
   '/:id',
+  authorizePermission('tables.delete'),
   deleteTableController
 );
 

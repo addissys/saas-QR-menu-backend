@@ -8,6 +8,7 @@ import {
   deleteCategoryController,
 } from '../controllers/category.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { authorizePermission } from '../middleware/permission.middleware';
 
 const router = Router();
 router.use(authenticate);
@@ -134,6 +135,7 @@ router.get(
  */
 router.post(
   '/',
+  authorizePermission('categories.create'),
   createCategoryController
 );
 
@@ -184,6 +186,7 @@ router.post(
  */
 router.patch(
   '/:id',
+  authorizePermission('categories.update'),
   updateCategoryController
 );
 
@@ -215,6 +218,7 @@ router.patch(
  */
 router.delete(
   '/:id',
+  authorizePermission('categories.delete'),
   deleteCategoryController
 );
 

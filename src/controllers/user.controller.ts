@@ -2,14 +2,39 @@ import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import prisma from '../config/prisma';
 import { getScopedBranchIds, assertBranchAccess, findBranchForResource } from '../middleware/branch-scope.middleware';
+import { createAuditLog } from '../services/audit-log.service';
+import { getEffectivePermissions } from '../services/auth.service';
 
-const MANAGEMENT_ROLES: Record<string, string[]> = {
-  SUPER_ADMIN: ['SUPER_ADMIN', 'CAFE_OWNER', 'OWNER', 'RESTAURANT_OWNER', 'EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
-  CAFE_OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
-  OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
-  RESTAURANT_OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
-  EXECUTIVE: ['BRANCH_MANAGER', 'STAFF'],
-  BRANCH_MANAGER: ['STAFF'],
+/**
+ * Helper to check if an actor with a given role can manage/assign a target role name.
+ * - SUPER_ADMIN: can manage/assign any role.
+ * - CAFE_OWNER / OWNER / RESTAURANT_OWNER: can manage/assign any role EXCEPT SUPER_ADMIN.
+ * - EXECUTIVE: can manage/assign any role EXCEPT SUPER_ADMIN, CAFE_OWNER/OWNER/RESTAURANT_OWNER, and EXECUTIVE.
+ * - BRANCH_MANAGER: can manage/assign any role EXCEPT SUPER_ADMIN, CAFE_OWNER/OWNER/RESTAURANT_OWNER, EXECUTIVE, and BRANCH_MANAGER (e.g. STAFF and custom staff roles).
+ */
+export const isRoleAssignable = (actorRole: string, targetRoleName: string): boolean => {
+  const actor = actorRole.toUpperCase();
+  const target = targetRoleName.toUpperCase();
+
+  if (actor === 'SUPER_ADMIN') return true;
+
+  // No non-super-admin can assign or manage SUPER_ADMIN
+  if (target === 'SUPER_ADMIN') return false;
+
+  const ownerRoles = ['CAFE_OWNER', 'OWNER', 'RESTAURANT_OWNER'];
+  if (ownerRoles.includes(actor)) {
+    return true;
+  }
+
+  if (actor === 'EXECUTIVE') {
+    return !ownerRoles.includes(target) && target !== 'EXECUTIVE';
+  }
+
+  if (actor === 'BRANCH_MANAGER') {
+    return !ownerRoles.includes(target) && target !== 'EXECUTIVE' && target !== 'BRANCH_MANAGER';
+  }
+
+  return false;
 };
 
 const assertUserManagementScope = async (req: Request, userId: string) => {
@@ -28,13 +53,20 @@ const assertUserManagementScope = async (req: Request, userId: string) => {
   const ownsTenant = target?.owned_tenants.some((tenant) => tenant.id === authReq.user?.tenantId);
   if (!target) throw new Error('User not found');
   if (!sameTenant && !ownsTenant) throw new Error('You are not authorized to manage this user');
-  if (!MANAGEMENT_ROLES[actorRole ?? '']?.includes(target.role.name.toUpperCase())) {
+  if (!actorRole || !isRoleAssignable(actorRole, target.role.name)) {
     throw new Error('You are not authorized to manage this user');
   }
   if (actorRole === 'EXECUTIVE' && target.staff_profile.length > 0 && authReq.user?.assignedBranchIds?.length) {
     const targetBranches = target.staff_profile.map((staff) => staff.branch?.id).filter(Boolean);
     if (!targetBranches.some((branchId) => authReq.user?.assignedBranchIds?.includes(branchId!))) {
       throw new Error('You are not authorized to manage this user');
+    }
+  }
+  if (actorRole === 'BRANCH_MANAGER') {
+    const assignedBranches = authReq.user?.assignedBranchIds ?? [];
+    const targetBranches = target.staff_profile.map((staff) => staff.branch?.id).filter(Boolean);
+    if (!targetBranches.length || !targetBranches.some((branchId) => assignedBranches.includes(branchId!))) {
+      throw new Error('You are not authorized to manage users outside your assigned branch');
     }
   }
 };
@@ -158,15 +190,7 @@ export const createNewUser = async (
     }
 
     const targetRole = await prisma.role.findFirst({ where: { id: validation.data.role_id, deleted_at: null } });
-    const roleHierarchy: Record<string, string[]> = {
-      SUPER_ADMIN: ['SUPER_ADMIN', 'CAFE_OWNER', 'OWNER', 'RESTAURANT_OWNER', 'EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
-      CAFE_OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
-      OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
-      RESTAURANT_OWNER: ['EXECUTIVE', 'BRANCH_MANAGER', 'STAFF'],
-      EXECUTIVE: ['BRANCH_MANAGER', 'STAFF'],
-      BRANCH_MANAGER: ['STAFF'],
-    };
-    if (!targetRole || !actorRole || !roleHierarchy[actorRole]?.includes(targetRole.name.toUpperCase())) {
+    if (!targetRole || !actorRole || !isRoleAssignable(actorRole, targetRole.name)) {
       return res.status(403).json({ success: false, message: 'You are not authorized to assign this role' });
     }
     const requestedBranches = validation.data.branch_ids ?? (validation.data.branch_id ? [validation.data.branch_id] : []);
@@ -281,7 +305,7 @@ export const updateExistingUser = async (
       const targetRole = validation.data.role_id
         ? await prisma.role.findFirst({ where: { id: validation.data.role_id, deleted_at: null } })
         : targetUser.role;
-      if (!targetRole || !actorRole || !MANAGEMENT_ROLES[actorRole]?.includes(targetRole.name.toUpperCase())) {
+      if (!targetRole || !actorRole || !isRoleAssignable(actorRole, targetRole.name)) {
         return res.status(403).json({ success: false, message: 'You are not authorized to assign this role' });
       }
       const requestedBranches = validation.data.branch_ids ?? (validation.data.branch_id ? [validation.data.branch_id] : []);
@@ -469,9 +493,57 @@ export const listUserPermissions = async (req: Request, res: Response) => {
 
 export const assignUserPermissionsController = async (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthenticatedRequest;
     await assertUserManagementScope(req, req.params.id as string);
-    const permissionIds = Array.isArray(req.body.permission_ids) ? req.body.permission_ids : [];
+
+    const permissionIds: string[] = Array.isArray(req.body.permission_ids) ? req.body.permission_ids : [];
+
+    // ─── SECURITY: Validate that the actor is authorized to grant each permission ───
+    // SUPER_ADMIN can grant anything. All others can only grant permissions
+    // they themselves possess (effective = role perms ∪ user perms).
+    const actorRole = authReq.user?.roleName?.toUpperCase();
+    if (actorRole !== 'SUPER_ADMIN' && permissionIds.length > 0) {
+      const actorEffective = await getEffectivePermissions(authReq.user!.id, authReq.user!.roleId);
+      const actorEffectiveSet = new Set(actorEffective);
+
+      // Look up each requested permission's string code
+      const requestedPerms = await prisma.permission.findMany({
+        where: { id: { in: [...new Set(permissionIds)] }, deleted_at: null },
+        select: { id: true, permission: true },
+      });
+
+      // Check every requested permission is in the actor's effective set
+      const unauthorized = requestedPerms.filter((p) => !actorEffectiveSet.has(p.permission));
+      if (unauthorized.length > 0) {
+        return res.status(403).json({
+          success: false,
+          message: `You are not authorized to grant the following permission(s): ${unauthorized.map((p) => p.permission).join(', ')}`,
+        });
+      }
+
+      // Also guard against IDs that don't exist at all (service will catch this too, but early exit)
+      if (requestedPerms.length !== new Set(permissionIds).size) {
+        return res.status(400).json({ success: false, message: 'One or more permissions were not found' });
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────────────
+
     const permissions = await assignUserPermissions(req.params.id as string, permissionIds);
+
+    await createAuditLog({
+      user_id: authReq.user?.id,
+      tenant_id: authReq.user?.tenantId,
+      module: 'user_permissions',
+      action: 'ASSIGN_USER_PERMISSIONS',
+      entity_name: 'UserPermission',
+      entity_id: req.params.id as string,
+      new_values: { permission_ids: permissionIds },
+      user_role: authReq.user?.roleName,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+    });
+
     return res.status(200).json({ success: true, data: permissions.map((entry) => entry.permission) });
   } catch (error: any) {
     if (error.message?.includes('not authorized')) return res.status(403).json({ success: false, message: error.message });
@@ -481,8 +553,24 @@ export const assignUserPermissionsController = async (req: Request, res: Respons
 
 export const revokeUserPermissionController = async (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthenticatedRequest;
     await assertUserManagementScope(req, req.params.id as string);
     const permissions = await revokeUserPermission(req.params.id as string, req.params.permissionId as string);
+
+    await createAuditLog({
+      user_id: authReq.user?.id,
+      tenant_id: authReq.user?.tenantId,
+      module: 'user_permissions',
+      action: 'REVOKE_USER_PERMISSION',
+      entity_name: 'UserPermission',
+      entity_id: req.params.id as string,
+      old_values: { permission_id: req.params.permissionId },
+      user_role: authReq.user?.roleName,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+    });
+
     return res.status(200).json({ success: true, data: permissions.map((entry) => entry.permission) });
   } catch (error: any) {
     return res.status(404).json({ success: false, message: error.message || 'Permission not found' });

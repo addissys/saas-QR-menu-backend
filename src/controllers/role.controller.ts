@@ -6,18 +6,27 @@ import {
   updateRole,
   deleteRole,
 } from '../services/user-role.service';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { createAuditLog } from '../services/audit-log.service';
+
+import { isRoleAssignable } from './user.controller';
 
 /**
  * GET /api/v1/roles
  */
 export const listRoles = async (req: Request, res: Response) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    const actorRole = authReq.user?.roleName?.toUpperCase() || '';
     const roles = await getAllRoles();
+
+    // Filter roles based on what the actor is authorized to manage/assign
+    const assignableRoles = roles.filter((role) => isRoleAssignable(actorRole, role.name));
 
     return res.status(200).json({
       success: true,
       message: 'Roles retrieved successfully',
-      data: roles,
+      data: assignableRoles,
     });
   } catch (error: any) {
     console.error('List roles error:', error);
@@ -81,6 +90,22 @@ export const createRoleController = async (req: Request, res: Response) => {
 
     const role = await createRole({ name, description });
 
+    // Audit log for role creation
+    const authReq = req as AuthenticatedRequest;
+    await createAuditLog({
+      user_id: authReq.user?.id,
+      tenant_id: authReq.user?.tenantId,
+      module: 'roles',
+      action: 'CREATE_ROLE',
+      entity_name: 'Role',
+      entity_id: role.id,
+      new_values: { name, description },
+      user_role: authReq.user?.roleName,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+    });
+
     return res.status(201).json({
       success: true,
       message: 'Role created successfully',
@@ -118,6 +143,22 @@ export const updateRoleController = async (req: Request, res: Response) => {
     }
 
     const role = await updateRole(id, { name, description });
+
+    // Audit log for role update
+    const authReq = req as AuthenticatedRequest;
+    await createAuditLog({
+      user_id: authReq.user?.id,
+      tenant_id: authReq.user?.tenantId,
+      module: 'roles',
+      action: 'UPDATE_ROLE',
+      entity_name: 'Role',
+      entity_id: role.id,
+      new_values: { name, description },
+      user_role: authReq.user?.roleName,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+    });
 
     return res.status(200).json({
       success: true,
@@ -161,6 +202,21 @@ export const deleteRoleController = async (req: Request, res: Response) => {
     }
 
     await deleteRole(id);
+
+    // Audit log for role deletion
+    const authReq = req as AuthenticatedRequest;
+    await createAuditLog({
+      user_id: authReq.user?.id,
+      tenant_id: authReq.user?.tenantId,
+      module: 'roles',
+      action: 'DELETE_ROLE',
+      entity_name: 'Role',
+      entity_id: id,
+      user_role: authReq.user?.roleName,
+      ip_address: req.ip,
+      user_agent: req.headers['user-agent'],
+      success: true,
+    });
 
     return res.status(200).json({
       success: true,

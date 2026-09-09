@@ -5,6 +5,7 @@ import {
   assignPermissions,
   revokePermission,
   listPermissions,
+  listGrantablePermissions,
 } from '../controllers/role-permission.controller';
 
 import { authenticate } from '../middleware/auth.middleware';
@@ -13,6 +14,10 @@ import { requireRoles } from '../middleware/role.middleware';
 const router = Router();
 
 router.get('/permissions', authenticate, listPermissions);
+
+// Returns only permissions the current user is authorised to grant
+// (used by frontend to populate Additional Permissions selector)
+router.get('/permissions/grantable', authenticate, listGrantablePermissions);
 
 /**
  * All role-permission endpoints require authentication.

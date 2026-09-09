@@ -7,6 +7,7 @@ import {
   deleteRoleController,
 } from '../controllers/role.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { requireRoles } from '../middleware/role.middleware';
 
 const router = Router();
 
@@ -91,7 +92,7 @@ router.get('/:id', authenticate, getRole);
  *       500:
  *         description: Failed to create role
  */
-router.post('/', authenticate, createRoleController);
+router.post('/', authenticate, requireRoles('SUPER_ADMIN'), createRoleController);
 
 /**
  * @swagger
@@ -127,7 +128,7 @@ router.post('/', authenticate, createRoleController);
  *       500:
  *         description: Failed to update role
  */
-router.patch('/:id', authenticate, updateRoleController);
+router.patch('/:id', authenticate, requireRoles('SUPER_ADMIN'), updateRoleController);
 
 /**
  * @swagger
@@ -154,6 +155,6 @@ router.patch('/:id', authenticate, updateRoleController);
  *       500:
  *         description: Failed to delete role
  */
-router.delete('/:id', authenticate, deleteRoleController);
+router.delete('/:id', authenticate, requireRoles('SUPER_ADMIN'), deleteRoleController);
 
 export default router;

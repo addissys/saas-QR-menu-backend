@@ -124,6 +124,24 @@ export const loginUser = async (
           business_name: true,
         },
       },
+      staff_profile: {
+        where: {
+          deleted_at: null,
+        },
+        select: {
+          id: true,
+          branch_id: true,
+          branch: {
+            select: {
+              id: true,
+              tenant_id: true,
+              branch_name: true,
+              address: true,
+              city: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -181,6 +199,8 @@ export const loginUser = async (
     },
   });
 
+  const permissions = await getEffectivePermissions(user.id, user.role_id);
+
   return {
     user: {
       id: user.id,
@@ -193,6 +213,8 @@ export const loginUser = async (
         name: user.role.name,
       },
       owned_tenants: user.owned_tenants,
+      staff_profile: user.staff_profile,
+      permissions,
     },
 
     access_token: accessToken,
@@ -286,6 +308,28 @@ export const refreshAccessToken = async (
 };
 
 /**
+ * Compute effective permissions for a user:
+ * effectivePermissions = rolePermissions UNION userPermissions
+ */
+export const getEffectivePermissions = async (userId: string, roleId: string): Promise<string[]> => {
+  const [rolePerms, userPerms] = await Promise.all([
+    prisma.rolePermission.findMany({
+      where: { role_id: roleId, deleted_at: null, permission: { deleted_at: null } },
+      select: { permission: { select: { permission: true } } },
+    }),
+    prisma.userPermission.findMany({
+      where: { user_id: userId, deleted_at: null, permission: { deleted_at: null } },
+      select: { permission: { select: { permission: true } } },
+    }),
+  ]);
+
+  const codes = new Set<string>();
+  for (const rp of rolePerms) codes.add(rp.permission.permission);
+  for (const up of userPerms) codes.add(up.permission.permission);
+  return Array.from(codes);
+};
+
+/**
  * Get current user
  */
 export const getCurrentUser = async (
@@ -329,6 +373,26 @@ export const getCurrentUser = async (
           status: true,
         },
       },
+
+      staff_profile: {
+        where: {
+          deleted_at: null,
+        },
+
+        select: {
+          id: true,
+          branch_id: true,
+          branch: {
+            select: {
+              id: true,
+              tenant_id: true,
+              branch_name: true,
+              address: true,
+              city: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -336,7 +400,9 @@ export const getCurrentUser = async (
     throw new Error('User not found');
   }
 
-  return user;
+  const permissions = await getEffectivePermissions(userId, user.role.id);
+
+  return { ...user, permissions };
 };
 
 /**

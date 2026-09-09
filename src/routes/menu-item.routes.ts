@@ -10,6 +10,7 @@ import {
   updateMenuItemFeaturedController,
 } from '../controllers/menu-item.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { authorizePermission } from '../middleware/permission.middleware';
 
 const router = Router();
 router.use(authenticate);
@@ -176,6 +177,7 @@ router.get(
  */
 router.post(
   '/',
+  authorizePermission('menu_items.create'),
   createMenuItemController
 );
 
@@ -236,6 +238,7 @@ router.post(
  */
 router.patch(
   '/:id',
+  authorizePermission('menu_items.update'),
   updateMenuItemController
 );
 
@@ -279,7 +282,7 @@ router.patch(
  *       500:
  *         description: Failed to update availability
  */
-router.patch('/:id/availability', updateMenuItemAvailabilityController);
+router.patch('/:id/availability', authorizePermission('menu_items.update'), updateMenuItemAvailabilityController);
 
 /**
  * @swagger
@@ -321,7 +324,7 @@ router.patch('/:id/availability', updateMenuItemAvailabilityController);
  *       500:
  *         description: Failed to update featured status
  */
-router.patch('/:id/featured', updateMenuItemFeaturedController);
+router.patch('/:id/featured', authorizePermission('menu_items.update'), updateMenuItemFeaturedController);
 
 /**
  * @swagger
@@ -351,6 +354,7 @@ router.patch('/:id/featured', updateMenuItemFeaturedController);
  */
 router.delete(
   '/:id',
+  authorizePermission('menu_items.delete'),
   deleteMenuItemController
 );
 

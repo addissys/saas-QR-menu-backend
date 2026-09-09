@@ -196,6 +196,13 @@ export const updateBranchController = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    if (authReq.user?.roleName?.toUpperCase() === 'BRANCH_MANAGER') {
+      return res.status(403).json({
+        success: false,
+        message: 'Branch Managers have read-only access to branch details and cannot modify branch information.',
+      });
+    }
     if (typeof req.params.id === 'string') await assertBranchAccess(req, req.params.id);
     const id = req.params.id;
 
@@ -250,6 +257,13 @@ export const deleteBranch = async (
   res: Response
 ) => {
   try {
+    const authReq = req as AuthenticatedRequest;
+    if (authReq.user?.roleName?.toUpperCase() === 'BRANCH_MANAGER') {
+      return res.status(403).json({
+        success: false,
+        message: 'Branch Managers have read-only access to branch details and cannot delete branch information.',
+      });
+    }
     if (typeof req.params.id === 'string') await assertBranchAccess(req, req.params.id);
     const id = req.params.id;
 
