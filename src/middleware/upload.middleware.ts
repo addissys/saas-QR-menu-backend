@@ -14,20 +14,7 @@ if (!fs.existsSync(uploadDir)) {
   });
 }
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadDir);
-  },
-
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-
-    const filename =
-      `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
-
-    cb(null, filename);
-  },
-});
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
