@@ -61,7 +61,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.12",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.5.1",
     "@types/nodemailer": "^8.0.1",
     "@types/qrcode": "^1.5.6",
     "@types/swagger-jsdoc": "^6.0.4",
