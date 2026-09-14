@@ -35,6 +35,7 @@ import { errorHandler } from './middleware/error.middleware';
 import { httpAuditMiddleware } from './middleware/http-audit.middleware';
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
 
 /*
@@ -221,5 +222,10 @@ app.use((req, res) => {
 
 app.use(errorHandler);
 
+if (process.env.VERCEL !== '1' && process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
 
 export default app;
