@@ -245,7 +245,10 @@ const options: swaggerJsdoc.Options = {
       // Internal (custom route groups)
       { name: 'Admin',            description: 'Admin dashboard & platform management' },
       { name: 'Executives',       description: 'Executive staff management' },
+      { name: 'Executive Branches', description: 'Executive-branch assignment management' },
       { name: 'Branch Managers',  description: 'Branch manager staff management' },
+      // Images
+      { name: 'Images',            description: 'Image upload management' },
     ],
   },
 

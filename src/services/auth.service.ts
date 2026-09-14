@@ -1,6 +1,4 @@
 import crypto from 'crypto';
-import bcrypt from 'bcrypt';
-
 import prisma from '../config/prisma';
 import {
   generateAccessToken,
